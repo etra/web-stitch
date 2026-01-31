@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}New Project - Step 1 - Web Stitch{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/wizard.css') }}">
+<link rel="stylesheet" href="{{ url_for('projects.static', filename='projects/projects.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="wizard-container">
+    <div class="wizard-card">
+        <h1 class="text-center mb-4">Create New Project</h1>
+
+        {% set current_step = 1 %}
+        {% set steps = ['Setup', 'Vendor', 'Colors'] %}
+        {% include 'components/wizard_steps.html' %}
+
+        <form method="POST" class="wizard-form" novalidate>
+            <div class="mb-4">
+                <label for="name" class="form-label">Project Name <span class="text-danger">*</span></label>
+                <input type="text"
+                       class="form-control"
+                       id="name"
+                       name="name"
+                       value="My Project"
+                       placeholder="Enter project name..."
+                       required
+                       autofocus>
+            </div>
+
+            <div class="mb-4">
+                <label for="description" class="form-label">Description</label>
+                <textarea class="form-control"
+                          id="description"
+                          name="description"
+                          rows="2"
+                          placeholder="Optional description..."></textarea>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label">Canvas Size</label>
+                <div class="size-preview-container">
+                    <div class="size-preview-wrapper">
+                        <div class="width-input-wrapper">
+                            <input type="number"
+                                   class="form-control size-input"
+                                   id="width"
+                                   name="width"
+                                   min="10"
+                                   max="1000"
+                                   value="100"
+                                   required>
+                            <span class="size-label">width</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-3">
+                            <div id="sizePreview" class="size-preview"></div>
+                            <div class="height-input-wrapper">
+                                <input type="number"
+                                       class="form-control size-input"
+                                       id="height"
+                                       name="height"
+                                       min="10"
+                                       max="1000"
+                                       value="100"
+                                       required>
+                                <span class="size-label">height</span>
+                            </div>
+                        </div>
+                        <div class="size-display" id="sizeDisplay">100 x 100 stitches</div>
+                    </div>
+                </div>
+                <div class="form-text">10 - 1000 stitches per dimension</div>
+            </div>
+
+            <div class="wizard-nav">
+                <div class="wizard-nav-left">
+                    <a href="{{ url_for('projects.list') }}"
+                       class="btn btn-outline-secondary"
+                       data-wizard-cancel>
+                        <i class="bi bi-x-lg"></i> Cancel
+                    </a>
+                </div>
+
+                <div class="wizard-nav-right">
+                    <button type="submit" class="btn btn-primary">
+                        Next <i class="bi bi-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/wizard.js') }}"></script>
+<script src="{{ url_for('projects.static', filename='projects/projects.js') }}"></script>
+<script>
+    initSizePreview();
+</script>
+{% endblock %}

@@ -1,0 +1,46 @@
+{# Vendor badge component #}
+{# Parameters:
+   - vendor: Vendor name (can be from color.vendor or passed directly)
+   - size: Badge size ('sm', 'md') - default: 'sm'
+#}
+
+{% set vendor_name = vendor or color.get('vendor') if color is defined else None %}
+{% set size = size|default('sm') %}
+
+{% if vendor_name %}
+{% set vendor_upper = vendor_name|upper %}
+{% set vendor_colors = {
+    'DMC': {'bg': '#e7f1ff', 'text': '#0d6efd'},
+    'HAMA': {'bg': '#fff3cd', 'text': '#996404'},
+    'ARTKAL': {'bg': '#f8d7da', 'text': '#842029'},
+    'NABBI': {'bg': '#d1e7dd', 'text': '#0f5132'}
+} %}
+{% set colors = vendor_colors.get(vendor_upper, {'bg': '#e9ecef', 'text': '#495057'}) %}
+
+<span class="vendor-badge vendor-badge-{{ size }}"
+      style="background-color: {{ colors.bg }}; color: {{ colors.text }};">
+    {{ vendor_upper }}
+</span>
+{% endif %}
+
+<style>
+.vendor-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 600;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.vendor-badge-sm {
+    font-size: 10px;
+    padding: 2px 6px;
+}
+
+.vendor-badge-md {
+    font-size: 11px;
+    padding: 3px 8px;
+}
+</style>

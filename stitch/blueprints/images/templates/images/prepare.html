@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block title %}Prepare Image - Web Stitch{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <h2 class="mb-4">Prepare Image for Pattern</h2>
+
+    <div class="row">
+        <!-- Left: Controls -->
+        <div class="col-md-4">
+            <div class="card mb-3">
+                <div class="card-header bg-primary text-white">
+                    <strong>Processing Settings</strong>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info alert-sm">
+                        <small>
+                            <strong>Original:</strong> {{ original_width }} × {{ original_height }} pixels
+                        </small>
+                    </div>
+
+                    <form method="POST" id="confirmForm">
+                        <div class="mb-3">
+                            <label for="width" class="form-label">
+                                Width: <span id="widthValue">100</span> stitches
+                            </label>
+                            <input type="range" class="form-range" id="width" name="width"
+                                   min="10" max="500" value="100" step="10">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="height" class="form-label">
+                                Height: <span id="heightValue">100</span> stitches
+                            </label>
+                            <input type="range" class="form-range" id="height" name="height"
+                                   min="10" max="500" value="100" step="10">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="colors" class="form-label">
+                                Colors: <span id="colorsValue">20</span>
+                            </label>
+                            <input type="range" class="form-range" id="colors" name="colors"
+                                   min="2" max="100" value="20" step="1">
+                            <small class="text-muted">Fewer = simpler pattern</small>
+                        </div>
+
+                        <div id="processing" class="alert alert-warning d-none">
+                            <div class="spinner-border spinner-border-sm" role="status">
+                                <span class="visually-hidden">Processing...</span>
+                            </div>
+                            Processing...
+                        </div>
+
+                        <div id="error" class="alert alert-danger d-none"></div>
+
+                        <div id="stats" class="alert alert-success d-none">
+                            <small>
+                                <strong>Result:</strong><br>
+                                Size: <span id="resultSize">-</span><br>
+                                Colors: <span id="resultColors">-</span>
+                            </small>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg" id="confirmBtn" disabled>
+                                Confirm & Continue →
+                            </button>
+                            <a href="{{ url_for('images.gallery') }}" class="btn btn-outline-secondary">
+                                Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <h6>Quick Guide:</h6>
+                    <ul class="small mb-0">
+                        <li>Adjust sliders to see preview</li>
+                        <li>Smaller size = faster processing</li>
+                        <li>Fewer colors = simpler pattern</li>
+                        <li>Preview updates automatically</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Preview -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#original-tab">Original</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#processed-tab">Processed</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#edges-tab">Edges</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#palette-tab">Palette</button>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-body bg-canvas" style="min-height: 500px;">
+                    <div class="tab-content">
+                        <div class="tab-pane fade show active text-center" id="original-tab">
+                            <img id="originalImg" src="" alt="Original" class="img-fluid img-pixelated img-preview">
+                            <p class="text-muted mt-2">Original image resized to pattern dimensions</p>
+                        </div>
+                        <div class="tab-pane fade text-center" id="processed-tab">
+                            <img id="processedImg" src="" alt="Processed" class="img-fluid img-pixelated img-preview">
+                            <p class="text-muted mt-2">Color-quantized image</p>
+                        </div>
+                        <div class="tab-pane fade text-center" id="edges-tab">
+                            <img id="edgesImg" src="" alt="Edges" class="img-fluid img-pixelated img-preview">
+                            <p class="text-muted mt-2">Edge detection for outline layer</p>
+                        </div>
+                        <div class="tab-pane fade" id="palette-tab">
+                            <div id="palettePreview" class="d-flex flex-wrap gap-2"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const filename = "{{ filename }}";
+let debounceTimer;
+
+document.getElementById('width').addEventListener('input', (e) => {
+    document.getElementById('widthValue').textContent = e.target.value;
+    debouncedProcess();
+});
+
+document.getElementById('height').addEventListener('input', (e) => {
+    document.getElementById('heightValue').textContent = e.target.value;
+    debouncedProcess();
+});
+
+document.getElementById('colors').addEventListener('input', (e) => {
+    document.getElementById('colorsValue').textContent = e.target.value;
+    debouncedProcess();
+});
+
+function debouncedProcess() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(processImage, 500);
+}
+
+async function processImage() {
+    const width = document.getElementById('width').value;
+    const height = document.getElementById('height').value;
+    const colors = document.getElementById('colors').value;
+
+    const processingDiv = document.getElementById('processing');
+    const errorDiv = document.getElementById('error');
+    const statsDiv = document.getElementById('stats');
+    const confirmBtn = document.getElementById('confirmBtn');
+
+    processingDiv.classList.remove('d-none');
+    errorDiv.classList.add('d-none');
+    confirmBtn.disabled = true;
+
+    try {
+        const response = await fetch('/images/process-ajax', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename, width, height, colors })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Processing failed');
+        }
+
+        document.getElementById('originalImg').src = data.original;
+        document.getElementById('processedImg').src = data.processed;
+        document.getElementById('edgesImg').src = data.edges;
+
+        const paletteDiv = document.getElementById('palettePreview');
+        paletteDiv.innerHTML = data.palette.map(color => `
+            <div class="text-center">
+                <div class="swatch swatch-lg" style="background-color: ${color.rgbHex};"></div>
+                <small class="d-block mt-1"><strong>${color.symbol}</strong></small>
+                <small class="text-body-secondary">${color.count}</small>
+            </div>
+        `).join('');
+
+        document.getElementById('resultSize').textContent = `${data.width} × ${data.height}`;
+        document.getElementById('resultColors').textContent = data.num_colors;
+        statsDiv.classList.remove('d-none');
+        confirmBtn.disabled = false;
+
+    } catch (error) {
+        errorDiv.textContent = error.message;
+        errorDiv.classList.remove('d-none');
+    } finally {
+        processingDiv.classList.add('d-none');
+    }
+}
+
+processImage();
+</script>
+{% endblock %}

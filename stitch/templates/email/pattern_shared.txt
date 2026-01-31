@@ -1,0 +1,11 @@
+A Pattern Was Shared With You!
+
+Hello,
+
+{{ sender_name }} has shared a cross-stitch pattern with you: "{{ pattern_name }}"
+
+View the pattern here: {{ pattern_url }}
+
+Happy stitching!
+
+The Web Stitch Team

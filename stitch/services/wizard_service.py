@@ -1,0 +1,253 @@
+"""
+Wizard service for managing project creation wizard state and logic.
+
+This service handles the multi-step wizard for creating both blank projects
+and pattern-based projects.
+"""
+import time
+import uuid
+from typing import Dict, Optional
+from flask import session
+from stitch.models.project import Project
+from stitch.services.project_service import ProjectService
+from stitch.services.image_processor import ImageProcessor
+from stitch.services.color_matcher import ColorMatcher
+
+
+class WizardService:
+    """Manage project creation wizard state and operations"""
+
+    WIZARD_SESSION_KEY = 'project_wizard'
+    WIZARD_TIMEOUT_SECONDS = 1800  # 30 minutes
+
+    @staticmethod
+    def init_wizard(wizard_type: str = 'blank') -> None:
+        """
+        Initialize wizard state in session.
+
+        Args:
+            wizard_type: Type of wizard ('blank' or 'from_pattern'), defaults to 'blank'
+        """
+        session[WizardService.WIZARD_SESSION_KEY] = {
+            'type': wizard_type,
+            'created_at': int(time.time())
+        }
+
+    @staticmethod
+    def validate_wizard_state(wizard_type: Optional[str] = None) -> bool:
+        """
+        Check if wizard state is valid and not expired.
+
+        Args:
+            wizard_type: Expected wizard type (optional)
+
+        Returns:
+            True if valid, False otherwise
+        """
+        wizard_data = session.get(WizardService.WIZARD_SESSION_KEY)
+
+        if not wizard_data:
+            return False
+
+        # Check type if specified
+        if wizard_type and wizard_data.get('type') != wizard_type:
+            return False
+
+        # Check timeout
+        created_at = wizard_data.get('created_at', 0)
+        if int(time.time()) - created_at > WizardService.WIZARD_TIMEOUT_SECONDS:
+            return False
+
+        return True
+
+    @staticmethod
+    def clear_wizard() -> None:
+        """Clear wizard state from session."""
+        session.pop(WizardService.WIZARD_SESSION_KEY, None)
+
+    @staticmethod
+    def get_wizard_data() -> Dict:
+        """Get current wizard data from session."""
+        return session.get(WizardService.WIZARD_SESSION_KEY, {})
+
+    @staticmethod
+    def update_wizard_data(data: Dict) -> None:
+        """
+        Update wizard data in session.
+
+        Args:
+            data: Dictionary of data to merge into wizard state
+        """
+        wizard_data = session.get(WizardService.WIZARD_SESSION_KEY, {})
+        wizard_data.update(data)
+        session[WizardService.WIZARD_SESSION_KEY] = wizard_data
+
+    @staticmethod
+    def create_blank_project(user_id: str) -> Project:
+        """
+        Create a blank project from wizard data.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            Created Project instance
+        """
+        wizard_data = WizardService.get_wizard_data()
+
+        # Extract wizard parameters
+        name = wizard_data.get('name')
+        description = wizard_data.get('description')
+        width = wizard_data.get('width')
+        height = wizard_data.get('height')
+        cloth_color = wizard_data.get('cloth_color')
+        selected_colors = wizard_data.get('selected_colors', [])
+
+        # Create base project
+        project = ProjectService.create_project(
+            user_id=user_id,
+            name=name,
+            description=description,
+            width=width,
+            height=height,
+            cloth_color=cloth_color
+        )
+
+        # Build palette from selected colors
+        palette = []
+        for idx, color in enumerate(selected_colors):
+            palette.append({
+                'id': f'c{idx}',
+                'vendor': color.get('vendor', '').upper() if color.get('vendor') else None,
+                'code': color.get('code'),
+                'name': color.get('name'),
+                'rgbHex': color.get('hex'),
+                'rgb': ColorMatcher.hex_to_rgb(color.get('hex')),
+                'symbol': chr(65 + idx) if idx < 26 else chr(97 + (idx - 26)),  # A-Z, then a-z
+                'sortIndex': idx,
+                'count': 0
+            })
+
+        # Update project state with palette
+        from sqlalchemy.orm.attributes import flag_modified
+        state = project.state
+        state['palette'] = palette
+        project.state = state
+        flag_modified(project, 'state')
+
+        # Save to database
+        from stitch import db
+        db.session.commit()
+
+        return project
+
+    @staticmethod
+    def create_pattern_project(user_id: str, name: str) -> Project:
+        """
+        Create a project from pattern image wizard data.
+
+        Args:
+            user_id: User ID
+            name: Project name
+
+        Returns:
+            Created Project instance
+        """
+        wizard_data = WizardService.get_wizard_data()
+
+        # Extract wizard parameters
+        pattern_metadata = wizard_data.get('pattern_metadata', {})
+        pattern_filename = wizard_data.get('pattern_image_filename')
+        source_filename = wizard_data.get('source_image_filename')
+        # Use thread palette if available (matched colors), otherwise use final palette (quantized colors)
+        final_palette = wizard_data.get('thread_palette') or wizard_data.get('final_palette', [])
+
+        width = pattern_metadata.get('width')
+        height = pattern_metadata.get('height')
+        cloth_color = wizard_data.get('cloth_color', '#ffffff')
+
+        # Create base project
+        project = ProjectService.create_project(
+            user_id=user_id,
+            name=name,
+            width=width,
+            height=height,
+            cloth_color=cloth_color
+        )
+
+        # Load pattern image and create layers
+        from stitch.services.image_service import ImageService
+        import os
+
+        upload_dir = ImageService.get_upload_dir(user_id)
+        pattern_path = os.path.join(upload_dir, 'processed', pattern_filename)
+        source_path = os.path.join(upload_dir, 'originals', source_filename)
+
+        # Process images into layers
+        processor = ImageProcessor()
+
+        # Load processed pattern image (already resized with correct aspect ratio)
+        import cv2
+        pattern_img = cv2.imread(pattern_path)
+        pattern_img = cv2.cvtColor(pattern_img, cv2.COLOR_BGR2RGB)
+
+        # Use the processed pattern image for reference layer (maintains aspect ratio)
+        reference_cells = processor.image_to_reference_cells(pattern_img, width)
+
+        # Use same processed image for the image layer
+        image_cells = processor.image_to_layer_cells(pattern_img, final_palette, width)
+
+        # Create edges layer using the processed image
+        edges = processor.detect_edges(pattern_img)
+        edges_cells = processor.edges_with_image_colors(edges, pattern_img, final_palette, width)
+
+        # Build layers
+        ref_layer_id = str(uuid.uuid4())
+        img_layer_id = str(uuid.uuid4())
+        edges_layer_id = str(uuid.uuid4())
+
+        layers = [
+            {
+                'id': ref_layer_id,
+                'type': 'reference',
+                'name': 'Reference (original)',
+                'visible': True,
+                'activeForExport': False,
+                'editable': False,
+                'cells': reference_cells,
+                'opacity': 0.7
+            },
+            {
+                'id': img_layer_id,
+                'type': 'raster',
+                'name': 'Image',
+                'visible': True,
+                'activeForExport': True,
+                'editable': True,
+                'cells': image_cells
+            },
+            {
+                'id': edges_layer_id,
+                'type': 'raster',
+                'name': 'Edges',
+                'visible': False,
+                'activeForExport': False,
+                'editable': True,
+                'cells': edges_cells
+            }
+        ]
+
+        # Update project state
+        from sqlalchemy.orm.attributes import flag_modified
+        state = project.state
+        state['palette'] = final_palette
+        state['layers'] = layers
+        state['activeLayerId'] = img_layer_id
+        project.state = state
+        flag_modified(project, 'state')
+
+        # Save to database
+        from stitch import db
+        db.session.commit()
+
+        return project

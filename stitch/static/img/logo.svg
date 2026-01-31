@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" role="img" aria-label="OurStitch logo">
+
+
+    <!-- Stitched Heart (simple X grid) -->
+    <g transform="translate(80,78)">
+        <!-- Heart silhouette area -->
+        <g class="keyline">
+            <!-- place little X stitches -->
+            <!-- Row 1 -->
+            <path d="M40 10 l10 10 M50 10 l-10 10" stroke="#F26B5B" stroke-width="7" stroke-linecap="round"/>
+            <path d="M70 10 l10 10 M80 10 l-10 10" stroke="#F26B5B" stroke-width="7" stroke-linecap="round"/>
+            <!-- Row 2 -->
+            <path d="M25 35 l10 10 M35 35 l-10 10" stroke="#F26B5B" stroke-width="7" stroke-linecap="round"/>
+            <path d="M55 35 l10 10 M65 35 l-10 10" stroke="#F5B84B" stroke-width="7" stroke-linecap="round"/>
+            <path d="M85 35 l10 10 M95 35 l-10 10" stroke="#F5B84B" stroke-width="7" stroke-linecap="round"/>
+            <!-- Row 3 -->
+            <path d="M25 65 l10 10 M35 65 l-10 10" stroke="#F26B5B" stroke-width="7" stroke-linecap="round"/>
+            <path d="M55 65 l10 10 M65 65 l-10 10" stroke="#F5B84B" stroke-width="7" stroke-linecap="round"/>
+            <path d="M85 65 l10 10 M95 65 l-10 10" stroke="#2F9E95" stroke-width="7" stroke-linecap="round"/>
+            <!-- Row 4 -->
+            <path d="M40 95 l10 10 M50 95 l-10 10" stroke="#F5B84B" stroke-width="7" stroke-linecap="round"/>
+            <path d="M70 95 l10 10 M80 95 l-10 10" stroke="#2F9E95" stroke-width="7" stroke-linecap="round"/>
+            <!-- Row 5 -->
+            <path d="M55 125 l10 10 M65 125 l-10 10" stroke="#2F9E95" stroke-width="7" stroke-linecap="round"/>
+        </g>
+    </g>
+
+    <!-- Wordmark -->
+    <g transform="translate(250,105)" class="keyline">
+        <text x="0" y="120" font-size="150" class="script teal">Our</text>
+        <text x="275" y="120" font-size="170" class="script coral">Stitch</text>
+    </g>
+
+    <!-- Thread swoosh + dotted line -->
+    <g transform="translate(250,0)">
+        <!-- solid coral thread -->
+        <path class="keyline" d="M45 265
+      C 170 305, 240 210, 320 255
+      C 405 302, 480 285, 540 260"
+              fill="none" stroke="var(--os-coral)" stroke-width="10" stroke-linecap="round"/>
+
+        <!-- dotted gold thread -->
+        <path d="M560 255
+      C 650 240, 740 285, 840 265"
+              fill="none" stroke="var(--os-gold)" stroke-width="8" stroke-linecap="round"
+              stroke-dasharray="10 14" opacity="0.95"/>
+    </g>
+
+    <!-- Needle on the right -->
+    <g transform="translate(1040,78)" class="keyline">
+        <path class="ink" d="M55 10 L10 250" stroke-width="10" stroke-linecap="round"/>
+        <path class="ink" d="M72 30 L30 265" stroke-width="6" stroke-linecap="round" opacity="0.7"/>
+        <circle cx="60" cy="12" r="10" fill="none" stroke="var(--os-teal)" stroke-width="6"/>
+    </g>
+
+    <!-- Tiny hearts (accent) -->
+    <g class="keyline">
+        <path d="M325 75
+      C 325 60, 350 60, 350 75
+      C 350 92, 325 98, 325 112
+      C 325 98, 300 92, 300 75
+      C 300 60, 325 60, 325 75Z" fill="var(--os-teal)" stroke="transparent"/>
+        <path d="M600 295
+      C 600 282, 620 282, 620 295
+      C 620 310, 600 315, 600 327
+      C 600 315, 580 310, 580 295
+      C 580 282, 600 282, 600 295Z" fill="var(--os-teal)" stroke="transparent"/>
+    </g>
+</svg>

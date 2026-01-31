@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit' if project else 'Create' }} Project - Web Stitch{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card">
+                <div class="card-body p-4">
+                    <h2 class="card-title mb-4">{{ 'Edit' if project else 'Create New' }} Project</h2>
+
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Project Name</label>
+                            <input
+                                type="text"
+                                class="form-control"
+                                id="name"
+                                name="name"
+                                value="{{ project.name if project else '' }}"
+                                required
+                                autofocus
+                                placeholder="My Cross-Stitch Pattern"
+                            >
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="width" class="form-label">Width (stitches)</label>
+                                <input
+                                    type="number"
+                                    class="form-control"
+                                    id="width"
+                                    name="width"
+                                    value="{{ project.width if project else 100 }}"
+                                    min="1"
+                                    max="1000"
+                                    required
+                                >
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="height" class="form-label">Height (stitches)</label>
+                                <input
+                                    type="number"
+                                    class="form-control"
+                                    id="height"
+                                    name="height"
+                                    value="{{ project.height if project else 100 }}"
+                                    min="1"
+                                    max="1000"
+                                    required
+                                >
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="cloth_color" class="form-label">Cloth Color</label>
+                            <div class="input-group">
+                                <input
+                                    type="color"
+                                    class="form-control form-control-color"
+                                    id="cloth_color"
+                                    name="cloth_color"
+                                    value="{{ project.cloth_color if project else '#ffffff' }}"
+                                    title="Choose cloth color"
+                                >
+                                <input
+                                    type="text"
+                                    class="form-control"
+                                    id="cloth_color_text"
+                                    value="{{ project.cloth_color if project else '#ffffff' }}"
+                                    pattern="^#[0-9A-Fa-f]{6}$"
+                                    readonly
+                                >
+                            </div>
+                            <div class="form-text">Background color for the cloth</div>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{{ url_for('projects.list') }}" class="btn btn-outline-secondary">
+                                Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                {{ 'Update' if project else 'Create' }} Project
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('projects.static', filename='projects/projects.js') }}"></script>
+<script>
+    initColorPickerSync();
+</script>
+{% endblock %}

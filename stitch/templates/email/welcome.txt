@@ -1,0 +1,17 @@
+Welcome to Web Stitch!
+
+Hello{{ ' ' + user.email if user else '' }},
+
+Thank you for joining Web Stitch - your new home for creating beautiful cross-stitch patterns!
+
+With Web Stitch, you can:
+- Create cross-stitch patterns from scratch
+- Import images and convert them to patterns
+- Edit patterns stitch-by-stitch
+- Share your creations with the community
+
+Get started by visiting: {{ url_for('projects.list', _external=True) }}
+
+Happy stitching!
+
+The Web Stitch Team

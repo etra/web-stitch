@@ -1,0 +1,13 @@
+Sign in to Web Stitch
+
+Hello{{ ' ' + user.email if user else '' }},
+
+Click the link below to sign in to your Web Stitch account:
+
+{{ magic_link }}
+
+This link will expire in 15 minutes.
+
+If you didn't request this email, you can safely ignore it.
+
+The Web Stitch Team

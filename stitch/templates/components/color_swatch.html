@@ -1,0 +1,107 @@
+{# Color swatch component #}
+{# Parameters:
+   - color: Color dictionary with 'hex', 'code', 'name', and optional 'vendor'
+   - size: Size of swatch ('sm', 'md', 'lg') - default: 'md'
+   - show_code: Show vendor code - default: true
+   - show_name: Show color name - default: true
+   - show_vendor: Show vendor badge - default: true
+   - selectable: Make swatch selectable (checkbox) - default: false
+   - selected: Whether swatch is selected - default: false
+#}
+
+{% set size = size|default('md') %}
+{% set show_code = show_code if show_code is defined else true %}
+{% set show_name = show_name if show_name is defined else true %}
+{% set show_vendor = show_vendor if show_vendor is defined else true %}
+{% set selectable = selectable if selectable is defined else false %}
+{% set selected = selected if selected is defined else false %}
+
+{% set swatch_size = {'sm': '24px', 'md': '32px', 'lg': '48px'}[size] %}
+
+<div class="color-swatch-item {% if selectable %}selectable{% endif %} {% if selected %}selected{% endif %}"
+     data-color-code="{{ color.code }}"
+     data-color-hex="{{ color.hex }}">
+    {% if selectable %}
+    <input type="checkbox"
+           class="color-swatch-checkbox form-check-input"
+           name="color_codes"
+           value="{{ color.code }}"
+           {% if selected %}checked{% endif %}>
+    {% endif %}
+
+    <div class="color-swatch-visual" style="width: {{ swatch_size }}; height: {{ swatch_size }};">
+        <div class="color-swatch-color" style="background-color: {{ color.hex }};"></div>
+    </div>
+
+    <div class="color-swatch-info">
+        {% if show_vendor and color.get('vendor') %}
+        <div class="color-swatch-vendor">
+            {% include 'components/vendor_badge.html' with context %}
+        </div>
+        {% endif %}
+
+        {% if show_code %}
+        <div class="color-swatch-code">{{ color.code }}</div>
+        {% endif %}
+
+        {% if show_name %}
+        <div class="color-swatch-name text-body-secondary">{{ color.name }}</div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.color-swatch-item {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    border-radius: var(--bs-border-radius);
+    transition: background-color 0.2s ease;
+    gap: 12px;
+}
+
+.color-swatch-item.selectable {
+    cursor: pointer;
+}
+
+.color-swatch-item.selectable:hover {
+    background-color: var(--bs-tertiary-bg);
+}
+
+.color-swatch-item.selected {
+    background-color: rgba(var(--bs-primary-rgb), 0.15);
+}
+
+.color-swatch-visual {
+    flex-shrink: 0;
+    border-radius: var(--bs-border-radius-sm);
+    border: 2px solid var(--bs-border-color);
+    overflow: hidden;
+}
+
+.color-swatch-color {
+    width: 100%;
+    height: 100%;
+}
+
+.color-swatch-info {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.color-swatch-vendor {
+    margin-bottom: 2px;
+}
+
+.color-swatch-code {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.color-swatch-name {
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+</style>

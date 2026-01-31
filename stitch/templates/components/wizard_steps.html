@@ -1,0 +1,103 @@
+{# Wizard progress indicator component #}
+{# Parameters:
+   - current_step: Current step number (1-4)
+   - total_steps: Total number of steps (default: 4)
+   - steps: List of step labels (optional)
+#}
+
+{% set total_steps = total_steps|default(4) %}
+{% set steps = steps|default(['Setup', 'Configure', 'Customize', 'Finalize']) %}
+
+<div class="wizard-steps mb-4">
+    <div class="d-flex justify-content-between align-items-center position-relative">
+        <div class="wizard-progress-line"></div>
+        {% for i in range(1, total_steps + 1) %}
+        <div class="wizard-step {% if i == current_step %}active{% elif i < current_step %}completed{% endif %}">
+            <div class="wizard-step-circle">
+                {% if i < current_step %}
+                <i class="bi bi-check-lg"></i>
+                {% else %}
+                {{ i }}
+                {% endif %}
+            </div>
+            <div class="wizard-step-label">{{ steps[i-1] if i-1 < steps|length else 'Step ' + i|string }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<style>
+.wizard-steps {
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.wizard-progress-line {
+    position: absolute;
+    top: 20px;
+    left: 10%;
+    right: 10%;
+    height: 2px;
+    background-color: var(--bs-border-color);
+    z-index: 0;
+}
+
+.wizard-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 1;
+    position: relative;
+}
+
+.wizard-step-circle {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: var(--bs-tertiary-bg);
+    color: var(--bs-secondary-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 16px;
+    border: 2px solid var(--bs-border-color);
+    transition: all 0.3s ease;
+}
+
+.wizard-step.active .wizard-step-circle {
+    background-color: var(--bs-primary);
+    color: white;
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 4px rgba(var(--bs-primary-rgb), 0.25);
+}
+
+.wizard-step.completed .wizard-step-circle {
+    background-color: var(--bs-success);
+    color: white;
+    border-color: var(--bs-success);
+}
+
+.wizard-step-label {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--bs-secondary-color);
+    text-align: center;
+    font-weight: 500;
+}
+
+.wizard-step.active .wizard-step-label {
+    color: var(--bs-primary);
+    font-weight: 600;
+}
+
+.wizard-step.completed .wizard-step-label {
+    color: var(--bs-success);
+}
+
+@media (max-width: 576px) {
+    .wizard-step-label { font-size: 10px; }
+    .wizard-step-circle { width: 32px; height: 32px; font-size: 14px; }
+}
+</style>

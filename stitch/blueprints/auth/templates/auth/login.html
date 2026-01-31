@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Login - Web Stitch{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            <div class="card shadow">
+                <div class="card-body p-5">
+                    <h2 class="card-title text-center mb-4">Login</h2>
+
+                    <div class="alert alert-info">
+                        <small>
+                            <strong>Note:</strong> This is MVP authentication. Simply enter your email to login or create an account.
+                            No password required (for local use only).
+                        </small>
+                    </div>
+
+                    <form method="POST" action="{{ url_for('auth.login') }}">
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email address</label>
+                            <input
+                                type="email"
+                                class="form-control form-control-lg"
+                                id="email"
+                                name="email"
+                                placeholder="your@email.com"
+                                required
+                                autofocus
+                            >
+                            <div class="form-text">
+                                Enter your email to login or create a new account.
+                            </div>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                Continue
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="text-center mt-3">
+                <small class="text-muted">
+                    By logging in, you agree this is for personal/local use only.
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

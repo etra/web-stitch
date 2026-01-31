@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}My Projects - Web Stitch{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('projects.static', filename='projects/projects.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="mb-1">My Projects</h1>
+            <p class="text-body-secondary mb-0">Manage your cross-stitch patterns</p>
+        </div>
+        <a href="{{ url_for('projects.new_setup') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>New Project
+        </a>
+    </div>
+
+    {% if projects %}
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 80px;">Preview</th>
+                        <th>Name</th>
+                        <th style="width: 120px;">Size</th>
+                        <th style="width: 100px;">Colors</th>
+                        <th style="width: 100px;">Cloth</th>
+                        <th style="width: 160px;">Updated</th>
+                        <th style="width: 60px;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for project in projects %}
+                    <tr>
+                        <!-- Thumbnail -->
+                        <td>
+                            <a href="{{ url_for('editor.canvas', project_id=project.id) }}">
+                                <div class="project-thumb" style="background-color: {{ project.cloth_color }};">
+                                    <img src="{{ url_for('editor.thumbnail', project_id=project.id) }}"
+                                         alt="{{ project.name }}">
+                                </div>
+                            </a>
+                        </td>
+
+                        <!-- Name -->
+                        <td>
+                            <a href="{{ url_for('editor.canvas', project_id=project.id) }}"
+                               class="text-decoration-none fw-semibold">
+                                {{ project.name }}
+                            </a>
+                        </td>
+
+                        <!-- Size -->
+                        <td>
+                            <span class="text-body-secondary">
+                                {{ project.width }} × {{ project.height }}
+                            </span>
+                        </td>
+
+                        <!-- Colors -->
+                        <td>
+                            <span class="badge bg-secondary">
+                                {{ project.state.get('palette', [])|length }} colors
+                            </span>
+                        </td>
+
+                        <!-- Cloth Color -->
+                        <td>
+                            <span class="swatch-inline swatch-xs" style="background-color: {{ project.cloth_color }};"></span>
+                            <small class="text-body-secondary ms-1">{{ project.cloth_color }}</small>
+                        </td>
+
+                        <!-- Updated -->
+                        <td>
+                            <small class="text-body-secondary">
+                                {{ project.updated_at.strftime('%Y-%m-%d %H:%M') if project.updated_at else 'N/A' }}
+                            </small>
+                        </td>
+
+                        <!-- Actions -->
+                        <td>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary border-0"
+                                        type="button"
+                                        data-bs-toggle="dropdown"
+                                        aria-expanded="false">
+                                    <i class="bi bi-three-dots-vertical"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li>
+                                        <a class="dropdown-item" href="{{ url_for('editor.canvas', project_id=project.id) }}">
+                                            <i class="bi bi-pencil me-2"></i>Open Editor
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="{{ url_for('projects.edit', project_id=project.id) }}">
+                                            <i class="bi bi-gear me-2"></i>Settings
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="{{ url_for('pattern.view', project_id=project.id) }}">
+                                            <i class="bi bi-printer me-2"></i>Print Pattern
+                                        </a>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <form method="POST"
+                                              action="{{ url_for('projects.delete', project_id=project.id) }}"
+                                              onsubmit="return confirm('Delete project {{ project.name }}?');"
+                                              class="m-0">
+                                            <button type="submit" class="dropdown-item text-danger">
+                                                <i class="bi bi-trash me-2"></i>Delete
+                                            </button>
+                                        </form>
+                                    </li>
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <p class="text-body-secondary mt-3 small">
+        {{ projects|length }} project{{ 's' if projects|length != 1 else '' }}
+    </p>
+
+    {% else %}
+    <div class="card">
+        <div class="card-body text-center py-5">
+            <i class="bi bi-folder-plus display-4 text-body-secondary mb-3"></i>
+            <h5>No projects yet</h5>
+            <p class="text-body-secondary mb-3">Create your first cross-stitch project to get started.</p>
+            <a href="{{ url_for('projects.new_setup') }}" class="btn btn-primary">
+                <i class="bi bi-plus-lg me-1"></i>Create New Project
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

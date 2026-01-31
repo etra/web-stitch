@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}New Project - Step 3 - Web Stitch{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/wizard.css') }}">
+<link rel="stylesheet" href="{{ url_for('projects.static', filename='projects/projects.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="wizard-container">
+    <div class="wizard-card">
+        <h1 class="text-center mb-4">Select Colors</h1>
+
+        {% set current_step = 3 %}
+        {% set steps = ['Setup', 'Vendor', 'Colors'] %}
+        {% include 'components/wizard_steps.html' %}
+
+        <div class="summary-card mb-4">
+            <div class="summary-row">
+                <span class="summary-label">Project:</span>
+                <span class="summary-value">{{ wizard_data.name }}</span>
+            </div>
+            <div class="summary-row">
+                <span class="summary-label">Size:</span>
+                <span class="summary-value">{{ wizard_data.width }} x {{ wizard_data.height }} stitches</span>
+            </div>
+            <div class="summary-row">
+                <span class="summary-label">Thread Vendor:</span>
+                <span class="summary-value">{{ vendor|upper }}</span>
+            </div>
+        </div>
+
+        <form method="POST" class="wizard-form" id="color-picker-form">
+            <!-- Buttons at top -->
+            <div class="wizard-nav mb-4">
+                <div class="wizard-nav-left">
+                    <a href="{{ url_for('projects.new_vendor') }}"
+                       class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Back
+                    </a>
+                    <a href="{{ url_for('projects.list') }}"
+                       class="btn btn-outline-secondary"
+                       data-wizard-cancel>
+                        <i class="bi bi-x-lg"></i> Cancel
+                    </a>
+                </div>
+
+                <div class="wizard-nav-right">
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="bi bi-check-lg"></i> Create Project
+                    </button>
+                </div>
+            </div>
+
+            <!-- Selected colors section -->
+            <div class="selected-colors-section">
+                <div class="selected-colors-header">
+                    <span class="selected-colors-title">Selected Colors (<span id="selected-count">0</span>)</span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="clear-all-btn" style="display: none;">
+                        Clear All
+                    </button>
+                </div>
+                <div class="selected-colors-grid" id="selected-colors-grid">
+                    <span class="no-colors-message" id="no-colors-msg">Click colors below to add them (optional)</span>
+                </div>
+                <!-- Hidden inputs for selected colors will be added here -->
+                <div id="selected-inputs"></div>
+            </div>
+
+            <!-- Available colors section -->
+            <div class="available-colors-section">
+                <div class="color-picker-container">
+                    <div class="color-picker-header">
+                        <input type="text"
+                               id="color-search"
+                               class="form-control color-picker-search"
+                               placeholder="Search by code or name...">
+                    </div>
+
+                    <div class="color-grid-compact" id="available-colors-grid">
+                        {% for color in palette %}
+                        <div class="color-grid-cell {% if color.default %}default-color{% endif %}"
+                             data-color-code="{{ color.code }}"
+                             data-color-name="{{ color.name }}"
+                             data-color-hex="{{ color.hex }}"
+                             data-color-default="{{ color.default|lower }}"
+                             title="{{ color.code }} - {{ color.name }}"
+                             style="background-color: {{ color.hex }};">
+                            <span class="color-grid-code">{{ color.code }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/wizard.js') }}"></script>
+<script src="{{ url_for('projects.static', filename='projects/projects.js') }}"></script>
+<script>
+    initColorSelection();
+</script>
+{% endblock %}

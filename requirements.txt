@@ -1,0 +1,30 @@
+# Flask and extensions
+Flask==3.0.0
+Flask-SQLAlchemy==3.1.1
+Flask-Migrate==4.0.5
+Flask-Mail==0.9.1
+
+# Database
+psycopg2-binary==2.9.9
+SQLAlchemy==2.0.23
+
+# Validation and serialization
+pydantic==2.5.0
+pydantic[email]==2.5.0
+
+# Image processing
+opencv-python==4.8.1.78
+numpy==1.26.2
+Pillow==10.1.0
+
+# PDF generation
+reportlab==4.0.7
+
+# Security
+werkzeug==3.0.1
+
+# Production server
+gunicorn==21.2.0
+
+# Environment variables
+python-dotenv==1.0.0

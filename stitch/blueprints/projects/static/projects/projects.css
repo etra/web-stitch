@@ -1,0 +1,175 @@
+/**
+ * Projects Blueprint Styles
+ *
+ * Styles specific to the projects blueprint pages:
+ * - Project list table
+ * - Project form
+ * - Creation wizard (setup, vendor, colors steps)
+ */
+
+/* =============================================================================
+   Project List - Thumbnail
+   ============================================================================= */
+
+.project-thumb {
+    width: 60px;
+    height: 60px;
+    border-radius: var(--bs-border-radius);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--bs-border-color);
+}
+
+.project-thumb img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    image-rendering: pixelated;
+}
+
+.table > tbody > tr:last-child > td {
+    border-bottom: none;
+}
+
+/* =============================================================================
+   Wizard - Size Preview (Setup Step)
+   ============================================================================= */
+
+.size-preview-container {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.size-preview-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.width-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.height-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.size-preview {
+    border: 2px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    background-color: #ffffff;
+    transition: all 0.2s ease;
+    min-width: 20px;
+    min-height: 20px;
+    max-width: 200px;
+    max-height: 200px;
+}
+
+.size-input {
+    width: 80px;
+}
+
+.size-label {
+    font-size: 0.875rem;
+    color: var(--bs-secondary-color);
+}
+
+.size-display {
+    text-align: center;
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--bs-secondary-color);
+}
+
+/* =============================================================================
+   Wizard - Color Selection (Colors Step)
+   ============================================================================= */
+
+.selected-colors-section {
+    background: var(--bs-tertiary-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    padding: 1rem;
+    margin-bottom: 1rem;
+    min-height: 80px;
+}
+
+.selected-colors-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.selected-colors-title {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--bs-secondary-color);
+}
+
+.selected-colors-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-height: 36px;
+    align-items: center;
+}
+
+.selected-color-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.625rem;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    font-size: 0.8125rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.selected-color-chip:hover {
+    border-color: var(--bs-danger);
+    background: var(--bs-danger-bg-subtle);
+}
+
+.selected-color-chip .color-swatch {
+    width: 18px;
+    height: 18px;
+    border-radius: var(--bs-border-radius-sm);
+    border: 1px solid var(--bs-border-color);
+    flex-shrink: 0;
+}
+
+.selected-color-chip .remove-icon {
+    color: var(--bs-secondary-color);
+    font-size: 0.75rem;
+}
+
+.selected-color-chip:hover .remove-icon {
+    color: var(--bs-danger);
+}
+
+.no-colors-message {
+    color: var(--bs-secondary-color);
+    font-size: 0.875rem;
+    font-style: italic;
+}
+
+.available-colors-section {
+    margin-top: 1rem;
+}
+
+.color-grid-cell.selected {
+    opacity: 0.3;
+    pointer-events: none;
+}

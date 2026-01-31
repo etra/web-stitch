@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}New Project - Step 2 - Web Stitch{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/wizard.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="wizard-container">
+    <div class="wizard-card">
+        <h1 class="text-center mb-4">Select Thread Vendor</h1>
+
+        {% set current_step = 2 %}
+        {% set steps = ['Setup', 'Vendor', 'Colors'] %}
+        {% include 'components/wizard_steps.html' %}
+
+        <p class="text-center text-muted mb-4">Choose the thread brand you'll be using for this project</p>
+
+        <form method="POST" class="wizard-form" id="vendor-form">
+            <div class="vendor-cards">
+                {% for vendor in vendors %}
+                <div class="vendor-card" data-vendor="{{ vendor.key }}">
+                    <input type="radio"
+                           name="vendor"
+                           value="{{ vendor.key }}"
+                           id="vendor_{{ vendor.key }}"
+                           required>
+                    <label for="vendor_{{ vendor.key }}" class="vendor-card-content">
+                        <div class="vendor-card-name">{{ vendor.name }}</div>
+                        <div class="vendor-card-info">
+                            <div class="vendor-card-count">{{ vendor.color_count }} colors</div>
+                            <div class="text-muted small">{{ vendor.type|title }}</div>
+                        </div>
+                    </label>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="wizard-nav">
+                <div class="wizard-nav-left">
+                    <a href="{{ url_for('projects.new_setup') }}"
+                       class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Back
+                    </a>
+                    <a href="{{ url_for('projects.list') }}"
+                       class="btn btn-outline-secondary"
+                       data-wizard-cancel>
+                        <i class="bi bi-x-lg"></i> Cancel
+                    </a>
+                </div>
+
+                <div class="wizard-nav-right">
+                    <button type="submit" class="btn btn-primary">
+                        Next <i class="bi bi-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/wizard.js') }}"></script>
+{% endblock %}

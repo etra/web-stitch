@@ -1,0 +1,278 @@
+/* OurStitch - Responsive Theme
+   Uses Bootstrap 5.3 color modes with custom brand palette
+   Follows system preference (light/dark) */
+
+/* ===========================================
+   LIGHT THEME (Default)
+   =========================================== */
+
+:root,
+[data-bs-theme="light"] {
+    /* Primary - Teal */
+    --bs-primary: #2F9E95;
+    --bs-primary-rgb: 47, 158, 149;
+    --bs-primary-hover: #27877F;
+    --bs-primary-active: #1F6F69;
+
+    /* Secondary - Coral */
+    --bs-secondary: #F26B5B;
+    --bs-secondary-rgb: 242, 107, 91;
+    --bs-secondary-hover: #E45849;
+    --bs-secondary-active: #C94437;
+
+    /* Support colors */
+    --bs-info: #41B9D5;
+    --bs-info-rgb: 65, 185, 213;
+    --bs-success: #3BBF8A;
+    --bs-success-rgb: 59, 191, 138;
+    --bs-warning: #F5B84B;
+    --bs-warning-rgb: 245, 184, 75;
+    --bs-danger: #D94B4B;
+    --bs-danger-rgb: 217, 75, 75;
+
+    /* Neutrals - Light theme */
+    --bs-body-bg: #FFF7F4;
+    --bs-body-color: #21323A;
+    --bs-secondary-bg: #FFFFFF;
+    --bs-tertiary-bg: #FFF0EA;
+    --bs-border-color: #F1D7D0;
+    --bs-secondary-color: #5A6B74;
+
+    /* Link colors */
+    --bs-link-color: #2F9E95;
+    --bs-link-hover-color: #27877F;
+}
+
+/* ===========================================
+   DARK THEME
+   =========================================== */
+
+[data-bs-theme="dark"] {
+    /* Primary - Teal (slightly brighter for dark bg) */
+    --bs-primary: #3DB8AD;
+    --bs-primary-rgb: 61, 184, 173;
+    --bs-primary-hover: #2F9E95;
+    --bs-primary-active: #27877F;
+
+    /* Secondary - Coral */
+    --bs-secondary: #F26B5B;
+    --bs-secondary-rgb: 242, 107, 91;
+    --bs-secondary-hover: #E45849;
+    --bs-secondary-active: #C94437;
+
+    /* Support colors */
+    --bs-info: #41B9D5;
+    --bs-info-rgb: 65, 185, 213;
+    --bs-success: #3BBF8A;
+    --bs-success-rgb: 59, 191, 138;
+    --bs-warning: #F5B84B;
+    --bs-warning-rgb: 245, 184, 75;
+    --bs-danger: #D94B4B;
+    --bs-danger-rgb: 217, 75, 75;
+
+    /* Neutrals - Dark theme */
+    --bs-body-bg: #1a1f2e;
+    --bs-body-color: #e8e8e8;
+    --bs-secondary-bg: #252a3a;
+    --bs-tertiary-bg: #2d3344;
+    --bs-border-color: #3d4352;
+    --bs-secondary-color: #9ca3af;
+
+    /* Link colors */
+    --bs-link-color: #3DB8AD;
+    --bs-link-hover-color: #4fd1c5;
+}
+
+/* ===========================================
+   BASE STYLES
+   =========================================== */
+
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1;
+}
+
+/* ===========================================
+   COMPONENT OVERRIDES
+   =========================================== */
+
+/* Navbar */
+.navbar {
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+/* Cards - subtle hover effect */
+.card {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+
+/* Primary button */
+.btn-primary {
+    --bs-btn-bg: var(--bs-primary);
+    --bs-btn-border-color: var(--bs-primary);
+    --bs-btn-hover-bg: var(--bs-primary-hover);
+    --bs-btn-hover-border-color: var(--bs-primary-hover);
+    --bs-btn-active-bg: var(--bs-primary-active);
+    --bs-btn-active-border-color: var(--bs-primary-active);
+    --bs-btn-color: #fff;
+    --bs-btn-hover-color: #fff;
+    --bs-btn-active-color: #fff;
+}
+
+.btn-outline-primary {
+    --bs-btn-color: var(--bs-primary);
+    --bs-btn-border-color: var(--bs-primary);
+    --bs-btn-hover-bg: var(--bs-primary);
+    --bs-btn-hover-border-color: var(--bs-primary);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-active-bg: var(--bs-primary-hover);
+    --bs-btn-active-border-color: var(--bs-primary-hover);
+}
+
+/* Secondary button */
+.btn-secondary {
+    --bs-btn-bg: var(--bs-secondary);
+    --bs-btn-border-color: var(--bs-secondary);
+    --bs-btn-hover-bg: var(--bs-secondary-hover);
+    --bs-btn-hover-border-color: var(--bs-secondary-hover);
+    --bs-btn-active-bg: var(--bs-secondary-active);
+    --bs-btn-active-border-color: var(--bs-secondary-active);
+    --bs-btn-color: #fff;
+    --bs-btn-hover-color: #fff;
+    --bs-btn-active-color: #fff;
+}
+
+.btn-outline-secondary {
+    --bs-btn-color: var(--bs-secondary);
+    --bs-btn-border-color: var(--bs-secondary);
+    --bs-btn-hover-bg: var(--bs-secondary);
+    --bs-btn-hover-border-color: var(--bs-secondary);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-active-bg: var(--bs-secondary-hover);
+    --bs-btn-active-border-color: var(--bs-secondary-hover);
+}
+
+/* Info button */
+.btn-info {
+    --bs-btn-bg: var(--bs-info);
+    --bs-btn-border-color: var(--bs-info);
+    --bs-btn-color: #fff;
+    --bs-btn-hover-color: #fff;
+}
+
+/* Success button */
+.btn-success {
+    --bs-btn-bg: var(--bs-success);
+    --bs-btn-border-color: var(--bs-success);
+    --bs-btn-color: #fff;
+    --bs-btn-hover-color: #fff;
+}
+
+/* Warning button */
+.btn-warning {
+    --bs-btn-bg: var(--bs-warning);
+    --bs-btn-border-color: var(--bs-warning);
+    --bs-btn-color: #21323A;
+    --bs-btn-hover-color: #21323A;
+}
+
+/* Danger button */
+.btn-danger {
+    --bs-btn-bg: var(--bs-danger);
+    --bs-btn-border-color: var(--bs-danger);
+    --bs-btn-color: #fff;
+    --bs-btn-hover-color: #fff;
+}
+
+/* Footer */
+footer {
+    border-top: 1px solid var(--bs-border-color);
+}
+
+/* Close button visibility in dark mode */
+[data-bs-theme="dark"] .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+/* ===========================================
+   DOMAIN-SPECIFIC COMPONENTS
+   These have no Bootstrap equivalent
+   =========================================== */
+
+/* Color Swatches - for displaying thread/bead colors */
+.swatch {
+    border: 2px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    flex-shrink: 0;
+}
+
+.swatch-xs { width: 20px; height: 20px; }
+.swatch-sm { width: 30px; height: 30px; }
+.swatch-md { width: 40px; height: 40px; }
+.swatch-lg { width: 50px; height: 50px; }
+.swatch-xl { width: 60px; height: 60px; }
+
+.swatch-inline {
+    display: inline-block;
+    vertical-align: middle;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 2px;
+}
+
+/* Canvas workspace - stays LIGHT for color accuracy */
+.bg-canvas {
+    background-color: #e8e8e8 !important;
+    color: #212529 !important;
+}
+
+/* Pixelated image rendering for pixel art */
+.img-pixelated {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+/* Image preview sizing */
+.img-preview {
+    max-height: 600px;
+}
+
+/* Gallery thumbnail */
+.img-thumb {
+    height: 150px;
+    object-fit: cover;
+}
+
+/* Pattern symbol display */
+.text-symbol {
+    font-size: 1.3rem;
+    font-family: var(--bs-font-monospace);
+    font-weight: bold;
+}
+
+/* ===========================================
+   SCROLLBAR (aesthetic touch)
+   =========================================== */
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bs-body-bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--bs-border-color);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--bs-secondary-color);
+}
