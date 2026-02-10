@@ -1,4 +1,4 @@
-from stitch.models.static_data import Stitch, get_stitches
+from stitch.models.stitch import Stitch, get_stitches
 
 class StitchService:
     """Manage stitch operations"""

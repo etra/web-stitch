@@ -10,6 +10,7 @@ from typing import Dict, Optional
 from flask import session
 from stitch.models.project import Project
 from stitch.services.project_service import ProjectService
+from stitch.services.tag_service import TagService
 from stitch.services.image_processor import ImageProcessor
 from stitch.services.color_matcher import ColorMatcher
 
@@ -100,7 +101,8 @@ class WizardService:
         description = wizard_data.get('description')
         width = wizard_data.get('width')
         height = wizard_data.get('height')
-        cloth_color = wizard_data.get('cloth_color')
+        difficulty = wizard_data.get('difficulty')
+        tag_names = wizard_data.get('tags', [])
         selected_colors = wizard_data.get('selected_colors', [])
 
         # Create base project
@@ -110,15 +112,21 @@ class WizardService:
             description=description,
             width=width,
             height=height,
-            cloth_color=cloth_color
+            difficulty=difficulty
         )
 
+        # Set project tags
+        if tag_names:
+            TagService.set_project_tags(project.id, tag_names)
+
         # Build palette from selected colors
+        # Selected colors come from ColorService.get_color() with keys:
+        # id, vendor, code, name, hex, is_default
         palette = []
         for idx, color in enumerate(selected_colors):
             palette.append({
                 'id': f'c{idx}',
-                'vendor': color.get('vendor', '').upper() if color.get('vendor') else None,
+                'vendor': color.get('vendor'),
                 'code': color.get('code'),
                 'name': color.get('name'),
                 'rgbHex': color.get('hex'),
@@ -128,15 +136,12 @@ class WizardService:
                 'count': 0
             })
 
-        # Update project state with palette
-        from sqlalchemy.orm.attributes import flag_modified
-        state = project.state
+        # Update project state with palette via normalized save
+        state = ProjectService.assemble_state(project)
         state['palette'] = palette
-        project.state = state
-        flag_modified(project, 'state')
+        ProjectService.save_state(project, state)
 
-        # Save to database
-        from stitch import db
+        from stitch.database import db
         db.session.commit()
 
         return project
@@ -164,7 +169,6 @@ class WizardService:
 
         width = pattern_metadata.get('width')
         height = pattern_metadata.get('height')
-        cloth_color = wizard_data.get('cloth_color', '#ffffff')
 
         # Create base project
         project = ProjectService.create_project(
@@ -172,7 +176,6 @@ class WizardService:
             name=name,
             width=width,
             height=height,
-            cloth_color=cloth_color
         )
 
         # Load pattern image and create layers
@@ -237,17 +240,14 @@ class WizardService:
             }
         ]
 
-        # Update project state
-        from sqlalchemy.orm.attributes import flag_modified
-        state = project.state
+        # Update project state via normalized save
+        state = ProjectService.assemble_state(project)
         state['palette'] = final_palette
         state['layers'] = layers
         state['activeLayerId'] = img_layer_id
-        project.state = state
-        flag_modified(project, 'state')
+        ProjectService.save_state(project, state)
 
-        # Save to database
-        from stitch import db
+        from stitch.database import db
         db.session.commit()
 
         return project

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}{{ seo.title }}{% endblock %}
+
+{% block meta_description %}{{ seo.description }}{% endblock %}
+
+{% block canonical %}
+<link rel="canonical" href="{{ seo.canonical_url }}">
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/community.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="mb-0">Community Patterns</h1>
+            <div class="btn-group" role="group" aria-label="Sort patterns">
+                <a href="{{ url_for('main.patterns', sort='latest', page=1) }}"
+                   class="btn btn-sm btn-outline-primary{{ ' active' if sort == 'latest' }}">
+                    Latest
+                </a>
+                <a href="{{ url_for('main.patterns', sort='popular', page=1) }}"
+                   class="btn btn-sm btn-outline-primary{{ ' active' if sort == 'popular' }}">
+                    Popular
+                </a>
+            </div>
+        </div>
+
+        {% if patterns %}
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-3 mb-4">
+            {% for project in patterns %}
+            <div class="col">
+                {% include 'components/pattern_card.html' %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Pagination -->
+        {% if total_pages > 1 %}
+        <nav aria-label="Pattern pagination">
+            <ul class="pagination justify-content-center">
+                <li class="page-item{{ ' disabled' if page <= 1 }}">
+                    <a class="page-link" href="{{ url_for('main.patterns', sort=sort, page=page - 1) }}">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                </li>
+                {% for p in range(1, total_pages + 1) %}
+                    {% if p == page %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ p }}</span>
+                    </li>
+                    {% elif p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('main.patterns', sort=sort, page=p) }}">{{ p }}</a>
+                    </li>
+                    {% elif p == page - 3 or p == page + 3 %}
+                    <li class="page-item disabled">
+                        <span class="page-link">&hellip;</span>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item{{ ' disabled' if page >= total_pages }}">
+                    <a class="page-link" href="{{ url_for('main.patterns', sort=sort, page=page + 1) }}">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+        {% endif %}
+
+        {% else %}
+        <div class="text-center text-body-secondary py-5">
+            <i class="bi bi-grid-3x3-gap fs-1 mb-3 d-block"></i>
+            <p class="fs-5">No community patterns yet.</p>
+            <p>Be the first to share a pattern with the community!</p>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/vote.js') }}"></script>
+{% endblock %}

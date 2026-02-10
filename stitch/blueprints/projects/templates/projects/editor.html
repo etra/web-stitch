@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.name }} - Editor - Web Stitch{% endblock %}
+
+{% block extra_css %}
+
+{% endblock %}
+
+{% block content %}
+<div>
+    <div
+            id="stitch-editor-root"
+            data-project-id="{{ project_id }}"
+            data-api-base-url="{{ api_base_url }}"
+    ></div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+
+<script type="module" src="{{ url_for('projects.static', filename='projects/stitch-editor-DfTnWF3F.js') }}"></script>
+<link rel="stylesheet" href="{{ url_for('projects.static', filename='projects/editor.css') }}">
+{% endblock %}

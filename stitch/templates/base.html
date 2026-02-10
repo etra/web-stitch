@@ -51,6 +51,24 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
     {% block extra_css %}{% endblock %}
+
+    <!-- Google Analytics: consent defaults + gtag.js -->
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+
+        gtag('consent', 'default', {
+          'ad_storage': 'denied',
+          'ad_user_data': 'denied',
+          'ad_personalization': 'denied',
+          'analytics_storage': 'denied'
+        });
+    </script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-15VXESKTK3"></script>
+    <script>
+        gtag('js', new Date());
+        gtag('config', 'G-15VXESKTK3');
+    </script>
 </head>
 <body>
     <!-- Navigation -->
@@ -59,6 +77,12 @@
             <a class="navbar-brand d-flex align-items-center" href="{{ url_for('main.index') }}">
                 <img src="{{ url_for('static', filename='img/logo_small.jpeg') }}" alt="OurStitch" class="rounded me-2" height="32">
             </a>
+            <div class="d-flex align-items-center gap-3 me-auto">
+                <a class="nav-link" href="{{ url_for('main.patterns') }}">Community Patterns</a>
+                {% if session.user_id %}
+                <a class="nav-link" href="{{ url_for('projects.list') }}">My Projects</a>
+                {% endif %}
+            </div>
             <div class="d-flex align-items-center">
                 <!-- Theme Selector -->
                 <div class="dropdown me-3">
@@ -130,6 +154,25 @@
         </div>
     </footer>
 
+    <!-- Cookie Consent Banner -->
+    <div id="cookieConsentOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1049;"></div>
+    <div id="cookieConsent" style="display:none; position:fixed; bottom:0; left:0; right:0; z-index:1050; background:#212529; color:#fff; padding:1rem;">
+        <div class="container d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div>
+                <p class="mb-1"><strong>We use cookies</strong></p>
+                <p class="mb-0 small">
+                    This website uses cookies to improve your experience and analyze traffic using Google Analytics.
+                    By clicking "Accept", you consent to our use of cookies.
+                    <a href="{{ url_for('main.privacy') }}" class="text-white text-decoration-underline">Learn more</a>
+                </p>
+            </div>
+            <div class="d-flex gap-2">
+                <button id="acceptCookies" class="btn btn-light btn-sm">Accept</button>
+                <button id="declineCookies" class="btn btn-outline-light btn-sm">Decline</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Bootstrap 5 JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
@@ -188,6 +231,68 @@
                 if (!localStorage.getItem('theme')) {
                     applyTheme('auto');
                 }
+            });
+        })();
+    </script>
+
+    <!-- Cookie Consent Script -->
+    <script>
+        (function() {
+            var CONSENT_KEY = 'cookie_consent';
+            var PAGE_VIEWS_KEY = 'page_views_count';
+            var PAGE_VIEWS_THRESHOLD = 3;
+
+            // TODO: Remove this line to enable cookie consent banner for production.
+            // For testing: always grant consent so analytics fires immediately.
+            localStorage.setItem(CONSENT_KEY, 'accepted');
+
+            function grantConsent() {
+                gtag('consent', 'update', {
+                    'ad_storage': 'granted',
+                    'ad_user_data': 'granted',
+                    'ad_personalization': 'granted',
+                    'analytics_storage': 'granted'
+                });
+            }
+
+            function showBanner(centered) {
+                var banner = document.getElementById('cookieConsent');
+                var overlay = document.getElementById('cookieConsentOverlay');
+                if (centered) {
+                    banner.style.bottom = 'auto';
+                    banner.style.top = '50%';
+                    banner.style.transform = 'translateY(-50%)';
+                    overlay.style.display = 'block';
+                }
+                banner.style.display = 'block';
+            }
+
+            function hideBanner() {
+                document.getElementById('cookieConsent').style.display = 'none';
+                document.getElementById('cookieConsentOverlay').style.display = 'none';
+            }
+
+            var consent = localStorage.getItem(CONSENT_KEY);
+            if (!consent) {
+                var views = parseInt(localStorage.getItem(PAGE_VIEWS_KEY) || '0', 10) + 1;
+                localStorage.setItem(PAGE_VIEWS_KEY, views.toString());
+                showBanner(views >= PAGE_VIEWS_THRESHOLD);
+            } else if (consent === 'accepted') {
+                grantConsent();
+            }
+
+
+            document.getElementById('acceptCookies').addEventListener('click', function() {
+                localStorage.setItem(CONSENT_KEY, 'accepted');
+                localStorage.removeItem(PAGE_VIEWS_KEY);
+                hideBanner();
+                grantConsent();
+            });
+
+            document.getElementById('declineCookies').addEventListener('click', function() {
+                localStorage.setItem(CONSENT_KEY, 'declined');
+                localStorage.removeItem(PAGE_VIEWS_KEY);
+                hideBanner();
             });
         })();
     </script>

@@ -12,24 +12,63 @@ class ImageProcessor:
     @staticmethod
     def load_image(file_path: Path) -> np.ndarray:
         """
-        Load image from file using OpenCV
+        Load image from file using OpenCV, preserving alpha channel if present.
 
         Args:
             file_path: Path to image file
 
         Returns:
-            RGB numpy array (H, W, 3)
+            numpy array: RGB (H, W, 3) or RGBA (H, W, 4) if source has alpha
         """
-        # Load image (OpenCV loads as BGR)
-        img = cv2.imread(str(file_path), cv2.IMREAD_COLOR)
+        # Load image preserving alpha channel so remove_alpha() can
+        # blend transparent areas to white instead of black.
+        img = cv2.imread(str(file_path), cv2.IMREAD_UNCHANGED)
 
         if img is None:
             raise ValueError(f"Could not load image: {file_path}")
 
-        # Convert BGR to RGB
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        if len(img.shape) == 2:
+            # Grayscale -> RGB
+            img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+        elif img.shape[2] == 4:
+            # BGRA -> RGBA (preserve alpha for remove_alpha())
+            img = cv2.cvtColor(img, cv2.COLOR_BGRA2RGBA)
+        else:
+            # BGR -> RGB
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        return img_rgb
+        return img
+
+    @staticmethod
+    def load_image_from_data_uri(data_uri: str) -> np.ndarray:
+        """
+        Load image from a base64 data URI string.
+
+        Args:
+            data_uri: Data URI string (e.g. 'data:image/png;base64,...')
+
+        Returns:
+            numpy array: RGB (H, W, 3) or RGBA (H, W, 4) if source has alpha
+        """
+        # Strip the data URI prefix
+        _, encoded = data_uri.split(',', 1)
+        img_bytes = base64.b64decode(encoded)
+
+        # Decode bytes to numpy array via OpenCV
+        arr = np.frombuffer(img_bytes, dtype=np.uint8)
+        img = cv2.imdecode(arr, cv2.IMREAD_UNCHANGED)
+
+        if img is None:
+            raise ValueError("Could not decode image from data URI.")
+
+        if len(img.shape) == 2:
+            img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+        elif img.shape[2] == 4:
+            img = cv2.cvtColor(img, cv2.COLOR_BGRA2RGBA)
+        else:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        return img
 
     @staticmethod
     def remove_alpha(image: np.ndarray) -> np.ndarray:
@@ -341,12 +380,11 @@ class ImageProcessor:
                     if distance == 0:
                         break
 
-                # Calculate cell key: y * width + x
-                key = str(y * width + x)
-                cells[key] = {
+                key = f"{x},{y}"
+                cells[key] = [{
                     'paletteIndex': palette_index,
                     'stitchType': stitch_type
-                }
+                }]
 
         return cells
 
@@ -372,8 +410,7 @@ class ImageProcessor:
                 pixel = image[y, x]
                 hex_color = f'#{pixel[0]:02x}{pixel[1]:02x}{pixel[2]:02x}'
 
-                # Calculate cell key: y * width + x
-                key = str(y * width + x)
+                key = f"{x},{y}"
                 cells[key] = {
                     'color': hex_color
                 }
@@ -402,12 +439,11 @@ class ImageProcessor:
         for y in range(height):
             for x in range(img_width):
                 if edges[y, x] > 0:  # Edge pixel
-                    # Calculate cell key: y * width + x
-                    key = str(y * width + x)
-                    cells[key] = {
+                    key = f"{x},{y}"
+                    cells[key] = [{
                         'paletteIndex': palette_index,
                         'stitchType': stitch_type
-                    }
+                    }]
 
         return cells
 
@@ -464,11 +500,10 @@ class ImageProcessor:
                         if distance == 0:
                             break
 
-                    # Calculate cell key: y * width + x
-                    key = str(y * width + x)
-                    cells[key] = {
+                    key = f"{x},{y}"
+                    cells[key] = [{
                         'paletteIndex': palette_index,
                         'stitchType': stitch_type
-                    }
+                    }]
 
         return cells

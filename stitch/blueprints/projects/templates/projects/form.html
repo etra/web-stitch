@@ -2,6 +2,10 @@
 
 {% block title %}{{ 'Edit' if project else 'Create' }} Project - Web Stitch{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('projects.static', filename='projects/projects.css') }}">
+{% endblock %}
+
 {% block content %}
 <div class="container py-5">
     <div class="row justify-content-center">
@@ -55,26 +59,28 @@
                         </div>
 
                         <div class="mb-3">
-                            <label for="cloth_color" class="form-label">Cloth Color</label>
-                            <div class="input-group">
-                                <input
-                                    type="color"
-                                    class="form-control form-control-color"
-                                    id="cloth_color"
-                                    name="cloth_color"
-                                    value="{{ project.cloth_color if project else '#ffffff' }}"
-                                    title="Choose cloth color"
-                                >
-                                <input
-                                    type="text"
-                                    class="form-control"
-                                    id="cloth_color_text"
-                                    value="{{ project.cloth_color if project else '#ffffff' }}"
-                                    pattern="^#[0-9A-Fa-f]{6}$"
-                                    readonly
-                                >
+                            <label for="difficulty" class="form-label">Difficulty</label>
+                            <select class="form-select" id="difficulty" name="difficulty">
+                                <option value="">Not specified</option>
+                                <option value="1" {{ 'selected' if project and project.difficulty == 1 }}>Beginner</option>
+                                <option value="2" {{ 'selected' if project and project.difficulty == 2 }}>Intermediate</option>
+                                <option value="3" {{ 'selected' if project and project.difficulty == 3 }}>Advanced</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="tag-input" class="form-label">Tags</label>
+                            <div class="tag-input-wrapper">
+                                <div class="tag-chips" id="tag-chips"></div>
+                                <input type="text"
+                                       class="form-control"
+                                       id="tag-input"
+                                       placeholder="Type a tag and press Enter..."
+                                       autocomplete="off">
+                                <div class="tag-suggestions" id="tag-suggestions"></div>
                             </div>
-                            <div class="form-text">Background color for the cloth</div>
+                            <div id="tag-hidden-inputs"></div>
+                            <div class="form-text">Press Enter to add a tag.</div>
                         </div>
 
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
@@ -96,6 +102,6 @@
 {% block extra_js %}
 <script src="{{ url_for('projects.static', filename='projects/projects.js') }}"></script>
 <script>
-    initColorPickerSync();
+    initTagInput('tag-input', 'tag-hidden-inputs', 'tag-chips', 'tag-suggestions', {{ project.tags | map(attribute='name') | list | tojson if project and project.tags else '[]' }});
 </script>
 {% endblock %}

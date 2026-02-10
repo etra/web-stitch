@@ -8,7 +8,6 @@ class ProjectCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     width: int = Field(..., ge=1, le=1000)
     height: int = Field(..., ge=1, le=1000)
-    cloth_color: str = Field(default='#ffffff', pattern=r'^#[0-9a-fA-F]{6}$')
 
 
 class ProjectEditRequest(BaseModel):
@@ -16,7 +15,6 @@ class ProjectEditRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     width: int = Field(..., ge=1, le=1000)
     height: int = Field(..., ge=1, le=1000)
-    cloth_color: str = Field(default='#ffffff', pattern=r'^#[0-9a-fA-F]{6}$')
 
 
 class WizardSetupRequest(BaseModel):

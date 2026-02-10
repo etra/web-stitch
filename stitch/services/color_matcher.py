@@ -4,7 +4,7 @@ Color matching service for mapping quantized colors to thread palettes (DMC, etc
 import cv2
 import numpy as np
 from typing import List, Dict, Tuple
-from stitch.models.static_data import get_palette, Color
+from stitch.models.color import Color, ColorVendor
 
 
 class ColorMatcher:
@@ -77,7 +77,15 @@ class ColorMatcher:
         Returns:
             List of matched colors with original and DMC mapping info
         """
-        thread_palette = get_palette(palette_name)
+        # Map lowercase palette names to ColorVendor enum values
+        vendor_map = {v.value.lower(): v for v in ColorVendor}
+        vendor = vendor_map.get(palette_name.lower())
+        if not vendor:
+            raise ValueError(
+                f"Unknown palette: {palette_name}. "
+                f"Available: {', '.join(vendor_map.keys())}"
+            )
+        thread_palette = Color.query.filter_by(vendor=vendor).all()
         matched_colors = []
 
         for idx, q_color in enumerate(quantized_palette):

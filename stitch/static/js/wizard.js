@@ -210,22 +210,6 @@
         }
     };
 
-    // Cloth color picker
-    const ClothColorPicker = {
-        init: function() {
-            const colorInput = document.querySelector('#cloth_color');
-            const previewElements = document.querySelectorAll('.cloth-color-preview');
-
-            if (colorInput && previewElements.length > 0) {
-                colorInput.addEventListener('input', function() {
-                    previewElements.forEach(el => {
-                        el.style.backgroundColor = this.value;
-                    });
-                });
-            }
-        }
-    };
-
     // Initialize all on DOM ready
     document.addEventListener('DOMContentLoaded', function() {
         WizardNav.initCancelButtons();
@@ -234,7 +218,6 @@
         ImageSelection.init();
         FormValidation.init();
         ColorReplacement.init();
-        ClothColorPicker.init();
     });
 
     // Expose utilities globally if needed

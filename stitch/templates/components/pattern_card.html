@@ -1,0 +1,47 @@
+{# Pattern card component
+   Parameters (via include with context):
+   - project: Project instance
+   - user_votes: dict mapping project_id → vote value (1, -1, or 0)
+#}
+{% set user_vote = user_votes.get(project.id, 0) if user_votes else 0 %}
+<div class="card pattern-card h-100">
+    <a href="{{ url_for('print.view', project_id=project.id) }}">
+        <img src="{{ url_for('projects.thumbnail_large', project_id=project.id) }}"
+             class="card-img-top" alt="{{ project.name }}"
+             loading="lazy">
+    </a>
+    <div class="card-body p-2">
+        <h6 class="card-title mb-1 text-truncate">
+            <a href="{{ url_for('print.view', project_id=project.id) }}" class="text-decoration-none text-body">
+                {{ project.name }}
+            </a>
+        </h6>
+        {% if project.description %}
+        <p class="card-text text-body-secondary small mb-2">
+            {{ project.description|truncate(80) }}
+        </p>
+        {% endif %}
+        <div class="d-flex flex-wrap gap-1 mb-0">
+            {% if project.difficulty_label %}
+            <span class="badge bg-info text-dark">{{ project.difficulty_label }}</span>
+            {% endif %}
+            {% for tag in project.tags[:3] %}
+            <span class="badge bg-secondary">{{ tag.name }}</span>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="card-footer bg-transparent d-flex align-items-center justify-content-between py-1">
+        <div class="vote-controls d-flex align-items-center gap-1" data-project-id="{{ project.id }}">
+            <button class="btn btn-sm btn-outline-secondary vote-btn vote-up{% if user_vote == 1 %} active{% endif %}"
+                    data-value="1" title="Upvote">
+                <i class="bi bi-arrow-up"></i>
+            </button>
+            <span class="vote-score small fw-semibold">{{ [project.vote_score, 0] | max }}</span>
+            <button class="btn btn-sm btn-outline-secondary vote-btn vote-down{% if user_vote == -1 %} active{% endif %}"
+                    data-value="-1" title="Downvote">
+                <i class="bi bi-arrow-down"></i>
+            </button>
+        </div>
+        <small class="text-body-secondary">{{ project.width }}&times;{{ project.height }}</small>
+    </div>
+</div>

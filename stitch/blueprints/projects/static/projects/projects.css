@@ -33,6 +33,11 @@
     border-bottom: none;
 }
 
+/* Allow dropdown menus to overflow the table-responsive wrapper */
+.table-responsive {
+    overflow: visible;
+}
+
 /* =============================================================================
    Wizard - Size Preview (Setup Step)
    ============================================================================= */
@@ -88,6 +93,61 @@
     margin-top: 0.5rem;
     font-size: 0.875rem;
     color: var(--bs-secondary-color);
+}
+
+/* =============================================================================
+   Tag Input
+   ============================================================================= */
+
+.tag-input-wrapper {
+    position: relative;
+}
+
+.tag-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.tag-chip {
+    cursor: pointer;
+    font-size: 0.8125rem;
+    padding: 0.25em 0.5em;
+}
+
+.tag-chip:hover {
+    opacity: 0.8;
+}
+
+.tag-chip-remove {
+    cursor: pointer;
+    margin-left: 0.25rem;
+    font-size: 0.75rem;
+}
+
+.tag-suggestions {
+    display: none;
+    position: absolute;
+    z-index: 1000;
+    width: 100%;
+    max-height: 200px;
+    overflow-y: auto;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-top: none;
+    border-radius: 0 0 var(--bs-border-radius) var(--bs-border-radius);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.tag-suggestion-item {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+}
+
+.tag-suggestion-item:hover {
+    background: var(--bs-tertiary-bg);
 }
 
 /* =============================================================================
@@ -172,4 +232,9 @@
 .color-grid-cell.selected {
     opacity: 0.3;
     pointer-events: none;
+}
+
+.color-grid-cell.at-limit {
+    opacity: 0.3;
+    cursor: not-allowed;
 }

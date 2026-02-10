@@ -1,0 +1,609 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.name }} - Pattern - OurStitch{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('print.static', filename='print/print.css') }}">
+<style>
+    .page-card {
+        background: white;
+        color: #212529;
+        border: 1px solid var(--bs-border-color);
+        border-radius: var(--bs-border-radius);
+        padding: 2rem;
+        margin-bottom: 1rem;
+    }
+    .pattern-image-container {
+        overflow: auto;
+        background: #e8e8e8;
+        padding: 1rem;
+        border-radius: var(--bs-border-radius);
+    }
+    .info-table th {
+        width: 140px;
+        font-weight: 600;
+    }
+    /* PDF preview cells in modal */
+    .pdf-preview-cell {
+        display: inline-block;
+        width: 28px;
+        height: 28px;
+        line-height: 28px;
+        text-align: center;
+        border: 1px solid #ccc;
+        font-family: var(--bs-font-monospace);
+        font-weight: bold;
+        font-size: 0.9rem;
+    }
+    /* Loading overlay for pattern images */
+    .pattern-image-container {
+        position: relative;
+    }
+    .pattern-loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .pattern-page-image {
+        transition: opacity 0.2s ease;
+    }
+    .pattern-page-image.loading {
+        opacity: 0.5;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h2 class="mb-1">{{ project.name }}</h2>
+                    <p class="text-body-secondary mb-0">
+                        {{ project.width }} x {{ project.height }} stitches | {{ legend_by_color | length }} colors | {{ total_stitches }} stitches
+                    </p>
+                </div>
+                <div class="d-flex gap-2">
+                    {% if project.user_id == session.get('user_id') %}
+                    <a href="{{ url_for('projects.editor', project_id=project.id) }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-1"></i>Back to Editor
+                    </a>
+                    {% else %}
+                    <a href="{{ url_for('main.patterns') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-1"></i>Back to Patterns
+                    </a>
+                    {% endif %}
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#pdfOptionsModal">
+                        <i class="bi bi-file-pdf me-1"></i>Download PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page Tabs -->
+    <ul class="nav nav-tabs mb-4" id="patternTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">
+                <i class="bi bi-image me-1"></i>Overview
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="legend-tab" data-bs-toggle="tab" data-bs-target="#legend" type="button" role="tab">
+                <i class="bi bi-list-ul me-1"></i>Legend
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="pattern-tab" data-bs-toggle="tab" data-bs-target="#pattern" type="button" role="tab">
+                Pattern
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="patternTabContent">
+
+        <!-- Page 1: Overview -->
+        <div class="tab-pane fade show active" id="overview" role="tabpanel">
+            <div class="page-card">
+                <div class="row">
+                    <!-- Pattern Preview -->
+                    <div class="col-lg-7 mb-4 mb-lg-0">
+                        <h4 class="mb-3">Pattern Preview</h4>
+                        <div class="pattern-image-container text-center">
+                            <img src="{{ overview_pattern }}" alt="Pattern Preview" class="img-fluid img-pixelated">
+                        </div>
+                    </div>
+
+                    <!-- Project Information -->
+                    <div class="col-lg-5">
+                        <h4 class="mb-3">Project Information</h4>
+                        <table class="table info-table">
+                            <tr>
+                                <th>Title:</th>
+                                <td>{{ project.name }}</td>
+                            </tr>
+                            {% if project.description %}
+                            <tr>
+                                <th>Description:</th>
+                                <td>{{ project.description }}</td>
+                            </tr>
+                            {% endif %}
+                            <tr>
+                                <th>Dimensions:</th>
+                                <td>{{ project.width }} x {{ project.height }} stitches</td>
+                            </tr>
+                            <tr>
+                                <th>Colors Used:</th>
+                                <td>{{ legend_by_color | length }} colors</td>
+                            </tr>
+                            <tr>
+                                <th>Total Stitches:</th>
+                                <td>{{ total_stitches }}</td>
+                            </tr>
+                            <tr>
+                                <th>Pattern Pages:</th>
+                                <td>{{ pattern_pages | length }} page{% if pattern_pages | length != 1 %}s{% endif %}</td>
+                            </tr>
+                            <tr>
+                                <th>Created:</th>
+                                <td>{{ project.created_at.strftime('%Y-%m-%d') }}</td>
+                            </tr>
+                        </table>
+
+                        <div class="alert alert-light border mt-3">
+                            <h6 class="alert-heading"><i class="bi bi-lightbulb me-1"></i>Tips</h6>
+                            <ul class="mb-0 small">
+                                <li>Click "Download PDF" to get a printable version</li>
+                                <li>Grid lines mark every 10 stitches</li>
+                                <li>Pattern pages show 50x50 stitches with 5-stitch overlap</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page 2: Legend -->
+        <div class="tab-pane fade" id="legend" role="tabpanel">
+            <div class="page-card">
+
+                {% if legend %}
+                <!-- Color Legend -->
+                <h4 class="mb-3">Color Legend</h4>
+                <div class="table-responsive mb-4">
+                    <table class="table table-sm table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 70px;" class="text-center">Symbol</th>
+                                <th style="width: 50px;">Color</th>
+                                <th>Color Name</th>
+                                <th style="width: 130px;">Thread Code</th>
+                                <th style="width: 90px;" class="text-end">Stitches</th>
+                                <th style="width: 70px;" class="text-end">Skeins*</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for color in legend_by_color %}
+                            <tr>
+                                <td class="text-center">
+                                    <strong class="text-symbol">{{ color.symbol }}</strong>
+                                </td>
+                                <td>
+                                    <div class="swatch-wide" style="background-color: {{ color.rgbHex }};"></div>
+                                </td>
+                                <td>{{ color.name }}</td>
+                                <td>
+                                    {% if color.vendor and color.code %}
+                                        <strong>{{ color.vendor }} {{ color.code }}</strong>
+                                    {% else %}
+                                        <span class="text-muted">Custom</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">{{ color.count }}</td>
+                                <td class="text-end">
+                                    <span class="badge bg-secondary">{{ (color.count / 200) | round(1) }}</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-light fw-bold">
+                            <tr>
+                                <td colspan="4" class="text-end">Total:</td>
+                                <td class="text-end">{{ total_stitches }}</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                {# By Stitch Type tables — disabled. See pattern_pdf_service.py for re-enable instructions. #}
+
+                <!-- Lines -->
+                {% if legend_by_stitch.get('Line') %}
+                <h4 class="mb-3">Lines</h4>
+                <div class="table-responsive mb-4">
+                    <table class="table table-sm table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 50px;">Color</th>
+                                <th>Color Name</th>
+                                <th style="width: 130px;">Thread Code</th>
+                                <th style="width: 90px;" class="text-end">Lines</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for color in legend_by_stitch.get('Line', []) %}
+                            <tr>
+                                <td>
+                                    <div class="swatch-wide" style="background-color: {{ color.rgbHex }};"></div>
+                                </td>
+                                <td>{{ color.name }}</td>
+                                <td>
+                                    {% if color.vendor and color.code %}
+                                        <strong>{{ color.vendor }} {{ color.code }}</strong>
+                                    {% else %}
+                                        <span class="text-muted">Custom</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">{{ color.count }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+
+                <div class="alert alert-secondary">
+                    <small>
+                        <strong>*Skein Calculation:</strong> Approximate 6-strand embroidery floss skeins required
+                        (estimated at ~200 stitches per skein on 14-count Aida). Actual usage varies based on fabric count,
+                        stitch type, and technique. It's recommended to purchase 1-2 extra skeins per color.
+                    </small>
+                </div>
+                {% else %}
+                <p class="text-muted">No stitches found in exportable layers.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Pattern (with nested sub-tabs) -->
+        <div class="tab-pane fade" id="pattern" role="tabpanel">
+            <div class="page-card">
+                <!-- Controls row: sub-tabs + display mode -->
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                    <!-- Left: sub-tabs -->
+                    <ul class="nav nav-pills" id="patternSubTabs">
+                        {% for page in pattern_pages %}
+                        <li class="nav-item">
+                            <button class="nav-link {% if loop.first %}active{% endif %}"
+                                    data-bs-toggle="pill"
+                                    data-bs-target="#pattern-{{ page.page_num }}">
+                                {{ page.row }}-{{ page.col }}
+                            </button>
+                        </li>
+                        {% endfor %}
+                    </ul>
+
+                    <!-- Right: display mode controls -->
+                    <div class="d-flex gap-2">
+                        <div class="btn-group" role="group" aria-label="Display mode">
+                            <input type="radio" class="btn-check" name="displayMode" id="modeChart" autocomplete="off" checked>
+                            <label class="btn btn-outline-primary btn-sm" for="modeChart" title="Filled color cells with symbols (traditional chart)">
+                                <svg class="me-1" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align: text-bottom;">
+                                    <rect x="1" y="1" width="14" height="14" rx="1" opacity="0.3"/><text x="8" y="13" text-anchor="middle" font-size="12" font-weight="bold" font-family="sans-serif">A</text>
+                                </svg>
+                                Chart
+                            </label>
+                            <input type="radio" class="btn-check" name="displayMode" id="modeStitch" autocomplete="off">
+                            <label class="btn btn-outline-primary btn-sm" for="modeStitch" title="Colored thread paths showing stitch shapes">
+                                <svg class="me-1" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align: text-bottom;">
+                                    <line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/>
+                                </svg>
+                                Stitch
+                            </label>
+                        </div>
+                        <button type="button" class="btn btn-outline-primary btn-sm active" id="lineToggle" title="Show/hide backstitch lines">
+                            <svg class="me-1" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align: text-bottom;">
+                                <line x1="2" y1="14" x2="14" y2="2"/>
+                            </svg>
+                            Lines
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sub-tab content -->
+                <div class="tab-content" id="patternSubTabContent">
+                    {% for page in pattern_pages %}
+                    <div class="tab-pane fade {% if loop.first %}show active{% endif %}"
+                         id="pattern-{{ page.page_num }}" role="tabpanel">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h4 class="mb-0">
+                                Pattern Grid
+                                {% if page.total_rows > 1 or page.total_cols > 1 %}
+                                <small class="text-muted">(Row {{ page.row }} of {{ page.total_rows }}, Column {{ page.col }} of {{ page.total_cols }})</small>
+                                {% endif %}
+                            </h4>
+                            <span class="badge bg-primary">Stitches: {{ page.label }}</span>
+                        </div>
+                        <div class="pattern-image-container text-center position-relative">
+                            <img src="{{ page.image }}"
+                                 alt="Pattern Grid {{ page.label }}"
+                                 class="img-fluid pattern-page-image"
+                                 data-page-num="{{ page.page_num }}"
+                                 data-original-src="{{ page.image }}">
+                            <div class="pattern-loading-overlay d-none">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                        {% if page.total_rows > 1 or page.total_cols > 1 %}
+                        <p class="text-muted mt-3 small">
+                            <i class="bi bi-info-circle me-1"></i>
+                            This page overlaps with adjacent pages by 5 stitches for easier alignment when stitching.
+                        </p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- PDF Options Modal -->
+<div class="modal fade" id="pdfOptionsModal" tabindex="-1" aria-labelledby="pdfOptionsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="pdfOptionsModalLabel">
+                    <i class="bi bi-file-pdf me-2"></i>PDF Export Options
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <!-- Left: Display options -->
+                    <div class="col-md-5">
+                        <label class="form-label fw-semibold mb-3">Display Mode</label>
+
+                        <div class="mb-3">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" name="pdfDisplayMode" id="pdfModeChart" checked>
+                                <label class="form-check-label" for="pdfModeChart">
+                                    <strong>Chart Symbol</strong>
+                                    <div class="text-muted small">Filled color cells with symbols — traditional chart notation</div>
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" name="pdfDisplayMode" id="pdfModeStitch">
+                                <label class="form-check-label" for="pdfModeStitch">
+                                    <strong>Stitch Preview</strong>
+                                    <div class="text-muted small">Colored thread paths showing stitch shapes (X, half, quarter)</div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="pdfShowLine" checked>
+                            <label class="form-check-label" for="pdfShowLine">
+                                <strong>Lines</strong>
+                                <div class="text-muted small">Show backstitch &amp; line paths</div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Right: Live preview -->
+                    <div class="col-md-7">
+                        <label class="form-label fw-semibold mb-3">Preview (Page 1)</label>
+                        <div class="border rounded bg-light p-2 text-center pdf-preview-container" style="min-height: 200px;">
+                            <div class="spinner-border spinner-border-sm text-secondary pdf-preview-spinner" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <img id="pdfPreviewImg" class="img-fluid d-none" alt="PDF Preview">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <a id="pdfDownloadBtn" href="{{ url_for('print.pdf', project_id=project.id) }}?symbol=1&line=1" target="_blank" class="btn btn-primary">
+                    <i class="bi bi-download me-1"></i>Generate PDF
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    /*
+     * Display modes for pattern grid pages:
+     *
+     *   Chart Symbol  — color=1, stitch=0, symbol=1
+     *     Filled color cells with symbol characters.
+     *     Traditional cross-stitch chart notation used for reading patterns.
+     *
+     *   Stitch Preview — color=0, stitch=1, symbol=0
+     *     Colored thread paths (X, half, quarter) on a white grid.
+     *     Shows how the actual stitchwork will look.
+     *
+     *   Lines — independent toggle (show_line=0/1)
+     *     Backstitch and line paths between grid corners.
+     */
+
+    // --- Display state ---
+    // "chart" = Chart Symbol (default), "stitch" = Stitch Preview
+    let displayMode = 'chart';
+    let showLines = true;
+
+    const projectId = "{{ project.id }}";
+    const pdfBaseUrl = "{{ url_for('print.pdf', project_id=project.id) }}";
+    const patternImages = document.querySelectorAll('.pattern-page-image');
+    const imageCache = {};
+
+    function getDisplayFlags() {
+        if (displayMode === 'chart') {
+            return { color: true, stitch: false, symbol: true, line: showLines };
+        }
+        return { color: false, stitch: true, symbol: false, line: showLines };
+    }
+
+    function buildDisplayQuery() {
+        const f = getDisplayFlags();
+        return 'color=' + (f.color ? '1' : '0') +
+               '&stitch=' + (f.stitch ? '1' : '0') +
+               '&symbol=' + (f.symbol ? '1' : '0') +
+               '&line=' + (f.line ? '1' : '0');
+    }
+
+    // Cache initial images under default flag combo
+    const initialKey = buildDisplayQuery();
+    patternImages.forEach(function(img) {
+        imageCache[img.dataset.pageNum + '_' + initialKey] = img.dataset.originalSrc;
+    });
+
+    // --- Inline controls ---
+    document.getElementById('modeChart').addEventListener('change', function() {
+        if (this.checked) { displayMode = 'chart'; updatePatternImages(); }
+    });
+    document.getElementById('modeStitch').addEventListener('change', function() {
+        if (this.checked) { displayMode = 'stitch'; updatePatternImages(); }
+    });
+    document.getElementById('lineToggle').addEventListener('click', function() {
+        showLines = !showLines;
+        this.classList.toggle('active', showLines);
+        updatePatternImages();
+    });
+
+    // --- Pattern image updates ---
+    async function updatePatternImages() {
+        const query = buildDisplayQuery();
+
+        for (const img of patternImages) {
+            const pageNum = img.dataset.pageNum;
+            const cacheKey = pageNum + '_' + query;
+
+            if (imageCache[cacheKey]) {
+                img.src = imageCache[cacheKey];
+                continue;
+            }
+
+            img.classList.add('loading');
+            const overlay = img.parentElement.querySelector('.pattern-loading-overlay');
+            if (overlay) overlay.classList.remove('d-none');
+
+            try {
+                const response = await fetch(
+                    '/print/' + projectId + '/api/page/' + pageNum + '?' + query
+                );
+                const data = await response.json();
+                if (data.image) {
+                    imageCache[cacheKey] = data.image;
+                    img.src = data.image;
+                }
+            } catch (error) {
+                console.error('Failed to load pattern page:', error);
+            } finally {
+                img.classList.remove('loading');
+                if (overlay) overlay.classList.add('d-none');
+            }
+        }
+    }
+
+    // --- PDF Modal ---
+    const pdfDownloadBtn = document.getElementById('pdfDownloadBtn');
+    const pdfPreviewImg = document.getElementById('pdfPreviewImg');
+    const pdfPreviewSpinner = document.querySelector('.pdf-preview-spinner');
+    let pdfPreviewController = null;
+
+    // Sync modal with current state when it opens
+    document.getElementById('pdfOptionsModal').addEventListener('show.bs.modal', function() {
+        document.getElementById('pdfModeChart').checked = (displayMode === 'chart');
+        document.getElementById('pdfModeStitch').checked = (displayMode === 'stitch');
+        document.getElementById('pdfShowLine').checked = showLines;
+        updatePdfLink();
+        loadPdfPreview();
+    });
+
+    // Modal mode radios
+    document.getElementById('pdfModeChart').addEventListener('change', function() {
+        if (this.checked) {
+            displayMode = 'chart';
+            document.getElementById('modeChart').checked = true;
+            onModalChange();
+        }
+    });
+    document.getElementById('pdfModeStitch').addEventListener('change', function() {
+        if (this.checked) {
+            displayMode = 'stitch';
+            document.getElementById('modeStitch').checked = true;
+            onModalChange();
+        }
+    });
+
+    // Modal line toggle
+    document.getElementById('pdfShowLine').addEventListener('change', function() {
+        showLines = this.checked;
+        document.getElementById('lineToggle').classList.toggle('active', showLines);
+        onModalChange();
+    });
+
+    function onModalChange() {
+        updatePdfLink();
+        loadPdfPreview();
+        updatePatternImages();
+    }
+
+    function updatePdfLink() {
+        pdfDownloadBtn.href = pdfBaseUrl + '?' + buildDisplayQuery();
+    }
+
+    function loadPdfPreview() {
+        if (pdfPreviewController) pdfPreviewController.abort();
+        pdfPreviewController = new AbortController();
+
+        pdfPreviewImg.classList.add('d-none');
+        pdfPreviewSpinner.classList.remove('d-none');
+
+        const query = buildDisplayQuery();
+        const cacheKey = '1_' + query;
+
+        if (imageCache[cacheKey]) {
+            pdfPreviewImg.src = imageCache[cacheKey];
+            pdfPreviewImg.classList.remove('d-none');
+            pdfPreviewSpinner.classList.add('d-none');
+            return;
+        }
+
+        fetch('/print/' + projectId + '/api/page/1?' + query, { signal: pdfPreviewController.signal })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.image) {
+                    imageCache[cacheKey] = data.image;
+                    pdfPreviewImg.src = data.image;
+                    pdfPreviewImg.classList.remove('d-none');
+                }
+            })
+            .catch(function(e) {
+                if (e.name !== 'AbortError') console.error('Preview load failed:', e);
+            })
+            .finally(function() {
+                pdfPreviewSpinner.classList.add('d-none');
+            });
+    }
+</script>
+{% endblock %}

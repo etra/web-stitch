@@ -84,14 +84,14 @@ Flask templates are effectively global, so templates MUST be namespaced per blue
 Blueprint-owned static assets MUST be namespaced per blueprint to avoid collisions.
 
 ✅ Correct:
-- `stitch/blueprints/editor/static/editor/editor.js`
-- `stitch/blueprints/editor/static/editor/editor.css`
+- `stitch/blueprints/print/static/print/print.css`
+- `stitch/blueprints/projects/static/projects/projects.js`
 
-Templates should reference these via `url_for("<blueprint_name>.static", filename="editor/editor.js")`
+Templates should reference these via `url_for("<blueprint_name>.static", filename="print/print.css")`
 (or the equivalent pattern used in this repo).
 
 ❌ Incorrect:
-- `stitch/blueprints/editor/static/editor.js` (not namespaced)
+- `stitch/blueprints/pattern/static/pattern.css` (not namespaced)
 - A shared global `static/` dumping ground for blueprint-owned assets
 
 If a static asset is genuinely shared across multiple blueprints, it should live in a clearly named shared location (and be documented).

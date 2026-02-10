@@ -1,0 +1,38 @@
+/* Community pattern cards and voting */
+
+.pattern-card {
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pattern-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.1);
+}
+
+.pattern-card .card-img-top {
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+}
+
+/* Vote controls */
+.vote-controls .vote-btn {
+    padding: 0.15rem 0.35rem;
+    line-height: 1;
+    border-color: var(--bs-border-color);
+}
+
+.vote-controls .vote-btn:hover {
+    z-index: 1;
+}
+
+.vote-controls .vote-up.active {
+    background-color: var(--bs-success);
+    border-color: var(--bs-success);
+    color: #fff;
+}
+
+.vote-controls .vote-down.active {
+    background-color: var(--bs-danger);
+    border-color: var(--bs-danger);
+    color: #fff;
+}

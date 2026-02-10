@@ -14,6 +14,10 @@
 
 {% block og_url %}{{ seo.canonical_url }}{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/community.css') }}">
+{% endblock %}
+
 {% block content %}
 <!-- Hero Section -->
 <section class="py-5">
@@ -54,18 +58,48 @@
     </div>
 </section>
 
-<!-- Community Patterns Section (Future) -->
+<!-- Latest Patterns Section -->
 <section class="py-5 bg-body-secondary">
     <div class="container">
-        <h2 class="text-center mb-4">Community Patterns</h2>
-        <p class="text-center text-body-secondary mb-5">
-            Discover patterns shared by our community of makers.
-        </p>
-        <!-- Placeholder for future community patterns grid -->
-        <div class="text-center text-body-secondary py-5">
+        <h2 class="mb-4">Latest Patterns</h2>
+        {% if latest_patterns %}
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-6 g-3 mb-4">
+            {% for project in latest_patterns %}
+            <div class="col">
+                {% include 'components/pattern_card.html' %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center text-body-secondary py-4">
             <i class="bi bi-grid-3x3-gap fs-1 mb-3 d-block"></i>
-            <p>Coming soon</p>
+            <p>No patterns shared yet. Be the first!</p>
+        </div>
+        {% endif %}
+
+        <h2 class="mb-4 mt-5">Best Patterns</h2>
+        {% if best_patterns %}
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-6 g-3 mb-4">
+            {% for project in best_patterns %}
+            <div class="col">
+                {% include 'components/pattern_card.html' %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center text-body-secondary py-4">
+            <i class="bi bi-grid-3x3-gap fs-1 mb-3 d-block"></i>
+            <p>No patterns shared yet. Be the first!</p>
+        </div>
+        {% endif %}
+
+        <div class="text-center mt-4">
+            <a href="{{ url_for('main.patterns') }}" class="btn btn-outline-primary">Browse All Patterns</a>
         </div>
     </div>
 </section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/vote.js') }}"></script>
 {% endblock %}

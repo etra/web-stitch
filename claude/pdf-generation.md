@@ -17,7 +17,7 @@ The PDF generation system creates printable pattern documents from project data.
 
 ## User Flow
 
-1. User navigates to pattern view (`/pattern/<project_id>`)
+1. User navigates to pattern view (`/print/<project_id>`)
 2. Clicks "Download PDF" button
 3. Modal opens with grid style options:
    - **Symbols Only** - Black symbols on white background
@@ -44,9 +44,9 @@ The generated PDF contains the following pages:
 
 ```
 stitch/
-├── blueprints/pattern/
+├── blueprints/print/
 │   ├── routes.py                 # PDF route with options
-│   └── templates/pattern/
+│   └── templates/print/
 │       └── view.html             # PDF options modal
 └── services/
     ├── pattern_pdf_service.py    # PDF document generation
@@ -167,7 +167,7 @@ Uses WCAG 2.0 relative luminance formula for accessibility.
 
 ## Route
 
-Location: `stitch/blueprints/pattern/routes.py`
+Location: `stitch/blueprints/print/routes.py`
 
 ```python
 @bp.route('/<project_id>/pdf')

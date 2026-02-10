@@ -20,11 +20,14 @@ They must not contain HTTP concerns (no Flask request/response handling, no rend
 | `image_service.py` | Image upload, preparation, and import |
 | `image_processor.py` | Low-level image transformations |
 | `color_matcher.py` | Color matching and palette reduction |
-| `vendor_palette_service.py` | Vendor-specific palette mapping (DMC, etc.) |
+| `color_service.py` | Query vendor color catalogs from the database |
 | `pattern_renderer.py` | Rendering patterns as images |
 | `pattern_pdf_service.py` | PDF generation for printable patterns |
+| `tag_service.py` | Tag management and project-tag associations |
 | `email_service.py` | Email sending (sync/async, templates) |
 | `seo_service.py` | SEO metadata generation for pages |
+| `vote_service.py` | Project voting (cast, remove, query) |
+| `community_service.py` | Public pattern queries (latest, best, paginated) |
 
 ---
 
@@ -70,10 +73,17 @@ Manages the full lifecycle of a project.
 - `update_project()` - Update project fields
 - `delete_project()` - Delete project
 - `create_initial_state()` - Generate initial empty project state
+- `assemble_state()` - Reconstruct full state dict from normalized `ProjectLayer` and `ProjectColor` tables (compatibility bridge for frontend and downstream consumers)
+- `save_state()` - Decompose a state dict into normalized tables (replace-all strategy: deletes then re-inserts)
+- `get_palette_color_count()` - Get number of palette colors for a project (used by project list)
+- `add_palette_colors()` - Add catalog colors to a project's palette (auto-assigns symbols, skips duplicates)
+- `remove_palette_colors()` - Remove colors from palette and clean up cell/path references in all layers
+- `merge_palette_colors()` - Remap cell/path references from source to target colors, then delete sources
 
 **Key Concepts:**
-- Projects store **full current state** as JSON
-- Backend applies diffs but stores snapshots
+- Project state is **normalized** into `ProjectLayer` and `ProjectColor` tables
+- `assemble_state()` reconstructs the JSON state format from normalized tables
+- `save_state()` decomposes state into normalized rows (uses flush, caller commits)
 - No foreign key constraints (application-level integrity)
 
 **Used by:**
@@ -134,7 +144,7 @@ High-level image handling and orchestration.
 **Delegates to:**
 - `image_processor` for transformations
 - `color_matcher` for palette reduction
-- `vendor_palette_service` for palette mapping
+- `color_service` for palette mapping
 
 **Does NOT:**
 - Contain OpenCV logic directly (delegates to `image_processor`)
@@ -183,35 +193,33 @@ Reduce and normalize colors from images.
 
 **Important:**
 This service is **vendor-agnostic**.
-Vendor logic lives in `vendor_palette_service.py`.
+Vendor-specific color lookups live in `color_service.py`.
 
 ---
 
-## 🧵 `vendor_palette_service.py`
+## 🏷️ `tag_service.py`
 
 **Purpose:**
-Manage vendor-specific thread/bead palettes and color matching.
+Manage tags and project-tag associations for categorizing projects.
 
 **Responsibilities:**
-- Provide vendor metadata and palette access
-- Validate vendor selection
-- Match colors to vendor palettes
-- Format colors for API responses
+- Normalize tag names (lowercase, strip, remove special chars)
+- Create and look up tags
+- Search tags by prefix for autocomplete
+- Set/replace all tags for a project
 
 **Key methods:**
-- `get_all_vendors()` - List all vendors with metadata
-- `get_supported_vendors()` - List of valid vendor keys
-- `is_valid_vendor()` - Check if vendor is supported
-- `get_palette_as_dict_list()` - Get vendor palette as dict list
-- `get_color()` - Get specific color from vendor palette
-- `match_colors_to_vendor()` - Match colors to nearest vendor palette colors
-- `get_all_colors()` - Get all colors from all vendors (for API)
+- `normalize_tag_name()` - Normalize tag name string
+- `get_or_create_tag()` - Find or create tag by normalized name
+- `search_tags()` - Search tags by prefix (for autocomplete API)
+- `set_project_tags()` - Replace all tags for a project
+- `get_project_tags()` - Get all tags for a project
+- `get_all_tags()` - Get all tags (for autocomplete pre-population)
 
 **Used by:**
-- `api` blueprint (colors endpoint)
-- `projects` blueprint (wizard routes)
-- `color_matcher`
-- `image_service`
+- `projects` blueprint (wizard and edit routes)
+- `api` blueprint (tag autocomplete endpoint)
+- `wizard_service` (during project creation)
 
 ---
 
@@ -335,6 +343,77 @@ Generate printable PDF documents for cross-stitch patterns.
 
 **Used by:**
 - `pattern` blueprint (PDF download route)
+
+---
+
+## 🎨 `color_service.py`
+
+**Purpose:**
+Query vendor color catalogs stored in the `colors` database table.
+
+**Responsibilities:**
+- List all supported vendors with metadata and color counts
+- Retrieve colors for a given vendor
+
+**Key methods:**
+- `get_all_colors()` - List all colors from all vendors
+- `get_vendors()` - List all vendors with metadata (from `ColorVendor` enum) and color counts (from DB)
+- `get_colors_by_vendor(vendor)` - Get all colors for a `ColorVendor` member
+- `get_color(vendor_key, code)` - Get a specific color by vendor and code
+- `is_valid_vendor(vendor_key)` - Check if a vendor key is valid
+
+**Does NOT:**
+- Modify color data (colors are seeded reference data)
+- Perform color matching (see `color_matcher.py`)
+- Handle HTTP concerns
+
+**Used by:**
+- `api` blueprint (colors endpoint)
+- `projects` blueprint (wizard routes)
+- Any service needing vendor color lookups
+
+---
+
+## 🗳️ `vote_service.py`
+
+**Purpose:**
+Manage Reddit-style voting on projects.
+
+**Responsibilities:**
+- Cast, change, or remove votes (+1 / -1)
+- Toggle logic (voting same value removes vote, opposite switches)
+- Maintain denormalized `Project.vote_score` cache
+- Bulk-query user votes for multiple projects
+
+**Key methods:**
+- `vote()` - Cast or toggle a vote
+- `remove_vote()` - Remove a vote
+- `get_user_vote()` - Get single user vote
+- `get_user_votes_bulk()` - Get user votes for multiple projects
+
+**Used by:**
+- `api` blueprint (vote endpoints)
+- `main` blueprint (bulk vote queries for templates)
+
+---
+
+## 🌐 `community_service.py`
+
+**Purpose:**
+Query public community patterns for display.
+
+**Responsibilities:**
+- Fetch latest public patterns
+- Fetch best-voted public patterns
+- Paginated browsing with sort options
+
+**Key methods:**
+- `get_latest_patterns()` - Public projects by creation date
+- `get_best_patterns()` - Public projects by vote score
+- `get_patterns_page()` - Paginated results with sort
+
+**Used by:**
+- `main` blueprint (index page, patterns browse page)
 
 ---
 

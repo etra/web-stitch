@@ -5,6 +5,7 @@ Uses ReportLab to generate printable PDF documents with pattern overview,
 color legend, and paginated symbol charts.
 """
 import io
+import os
 from typing import Dict, List, Tuple
 from datetime import datetime
 
@@ -17,8 +18,37 @@ from reportlab.platypus import (
     Image, PageBreak, KeepTogether
 )
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 from stitch.services.pattern_renderer import PatternRenderer
+from stitch.services.project_service import ProjectService
+
+
+def _register_unicode_font() -> str:
+    """Register a Unicode-capable TrueType font with ReportLab.
+
+    Returns the registered font name, or 'Helvetica' as fallback.
+    """
+    font_candidates = [
+        ('DejaVuSans', 'DejaVuSans.ttf'),
+        ('DejaVuSans', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'),
+        ('DejaVuSans', '/usr/share/fonts/TTF/DejaVuSans.ttf'),
+        ('ArialUnicode', '/System/Library/Fonts/Supplemental/Arial Unicode.ttf'),
+        ('NotoSans', 'NotoSans-Regular.ttf'),
+    ]
+
+    for font_name, font_path in font_candidates:
+        try:
+            pdfmetrics.registerFont(TTFont(font_name, font_path))
+            return font_name
+        except Exception:
+            continue
+
+    return 'Helvetica'
+
+
+UNICODE_FONT = _register_unicode_font()
 
 
 class PatternPDFService:
@@ -40,14 +70,14 @@ class PatternPDFService:
     SITE_NAME = "OurStitch"
 
     @staticmethod
-    def generate_pdf(project, logo_path: str = None, grid_style: str = 'symbols') -> bytes:
+    def generate_pdf(project, logo_path: str = None, render_mode: dict = None) -> bytes:
         """
         Generate a complete pattern PDF.
 
         Args:
             project: Project object with state, dimensions, etc.
             logo_path: Path to logo image file (optional)
-            grid_style: 'symbols' for black symbols on white, 'colored' for symbols on colored backgrounds
+            render_mode: Dict with show_color, show_stitch, show_symbol, show_line flags
 
         Returns:
             PDF file as bytes
@@ -67,39 +97,44 @@ class PatternPDFService:
             creator=PatternPDFService.SITE_NAME
         )
 
+        if render_mode is None:
+            render_mode = {
+                'show_color': False,
+                'show_stitch': False,
+                'show_symbol': True,
+                'show_line': True,
+            }
+
         # Build document elements
         elements = []
         styles = PatternPDFService._get_styles()
 
+        # Assemble state once for all rendering calls
+        state = ProjectService.assemble_state(project)
+
         # Generate pattern data
         legend = PatternRenderer.generate_legend(
-            project.state, project.width, project.height
+            state, project.width, project.height
         )
         total_stitches = sum(color['count'] for color in legend)
 
         # Legend grouped by stitch type
         legend_by_stitch = PatternRenderer.generate_legend_by_stitch_type(
-            project.state, project.width, project.height
+            state, project.width, project.height
         )
 
         # Page 1: Overview
         elements.extend(PatternPDFService._build_overview_page(
-            project, legend, total_stitches, styles, logo_path
+            project, state, legend, total_stitches, styles, logo_path
         ))
 
-        # Page 2: Legend by Color
+        # Page 2+: Color legend + stitch type breakdown (flows together)
         elements.append(PageBreak())
-        elements.extend(PatternPDFService._build_legend_page(
-            legend, total_stitches, styles
+        elements.extend(PatternPDFService._build_legend_pages(
+            legend, legend_by_stitch, total_stitches, styles
         ))
 
-        # Page 3: Legend by Stitch Type
-        elements.append(PageBreak())
-        elements.extend(PatternPDFService._build_legend_by_stitch_page(
-            legend_by_stitch, total_stitches, styles
-        ))
-
-        # Pages 4+: Pattern grids
+        # Pattern grid pages
         page_definitions = PatternRenderer.calculate_pattern_pages(
             project.width, project.height, page_size=50, overlap=5
         )
@@ -107,12 +142,13 @@ class PatternPDFService:
         for page_def in page_definitions:
             elements.append(PageBreak())
             elements.extend(PatternPDFService._build_pattern_page(
-                project, page_def, styles, grid_style
+                project, state, page_def, styles, render_mode=render_mode
             ))
 
         # Calculate total pages for footer
-        # 1 (overview) + 1 (legend by color) + 1 (legend by stitch) + pattern pages
-        total_pages = 3 + len(page_definitions)
+        # 1 (overview) + 1 (legend) + pattern pages
+        # Note: legend may flow to multiple pages but ReportLab handles that automatically
+        total_pages = 2 + len(page_definitions)
 
         # Build PDF with custom footer
         doc.build(
@@ -162,7 +198,7 @@ class PatternPDFService:
         return styles
 
     @staticmethod
-    def _build_overview_page(project, legend, total_stitches, styles, logo_path) -> List:
+    def _build_overview_page(project, state, legend, total_stitches, styles, logo_path) -> List:
         """Build the overview page elements."""
         elements = []
 
@@ -177,7 +213,7 @@ class PatternPDFService:
         # Two-column layout: pattern image + info table
         # Generate overview pattern image
         overview_img = PatternRenderer.render_overview_pattern(
-            project.state, project.width, project.height, max_size=400
+            state, project.width, project.height, max_size=400
         )
 
         # Convert numpy array to PIL Image then to ReportLab Image
@@ -194,7 +230,6 @@ class PatternPDFService:
             ['Dimensions:', f"{project.width} × {project.height} stitches"],
             ['Colors Used:', f"{len(legend)} colors"],
             ['Total Stitches:', f"{total_stitches:,}"],
-            ['Cloth Color:', project.cloth_color],
             ['Pattern Pages:', f"{len(PatternRenderer.calculate_pattern_pages(project.width, project.height))}"],
             ['Created:', project.created_at.strftime('%Y-%m-%d')],
         ]
@@ -242,77 +277,102 @@ class PatternPDFService:
         return elements
 
     @staticmethod
-    def _build_legend_page(legend, total_stitches, styles) -> List:
-        """Build the color legend page elements."""
-        elements = []
+    def _build_legend_pages(legend: List, legend_by_stitch: Dict,
+                            total_stitches: int, styles) -> List:
+        """Build legend pages: color table first, then by-stitch tables.
 
-        elements.append(Paragraph('Color Legend & Thread Requirements', styles['PatternTitle']))
-        elements.append(Spacer(1, 5 * mm))
+        Section 1 — Color Legend: one row per color (aggregated across stitch
+        types). Columns: Symbol | Color | Color Name | Thread Code | Stitches | Skeins*
+
+        Section 2 — By Stitch Type: one table per category with a rendered
+        40×40 stitch preview image per row. Lines get a simplified table.
+        """
+        elements = []
 
         if not legend:
             elements.append(Paragraph('No stitches found in exportable layers.', styles['Normal']))
             return elements
 
-        # Legend table: Stitch Icon | Symbol | Color | Color Name | Thread Code | Stitches | Skeins
-        table_data = [['Stitch', 'Symbol', 'Color', 'Color Name', 'Thread Code', 'Stitches', 'Skeins*']]
+        # ── Section 1: Color Legend ──────────────────────────────────
+        elements.append(Paragraph('Color Legend', styles['PatternTitle']))
+        elements.append(Spacer(1, 5 * mm))
 
-        for color in legend:
+        # Aggregate legend entries by paletteIndex (sum across stitch types)
+        color_agg = {}
+        for entry in legend:
+            pi = entry['paletteIndex']
+            if pi not in color_agg:
+                color_agg[pi] = {
+                    'symbol': entry['symbol'],
+                    'rgbHex': entry['rgbHex'],
+                    'name': entry['name'],
+                    'vendor': entry.get('vendor'),
+                    'code': entry.get('code'),
+                    'count': 0,
+                }
+            color_agg[pi]['count'] += entry['count']
+
+        color_list = sorted(
+            color_agg.values(),
+            key=lambda x: (x['vendor'] or '', x['code'] or '')
+        )
+
+        color_col_widths = [1.0 * cm, 0.8 * cm, 4.5 * cm, 2.5 * cm, 2 * cm, 1.5 * cm]
+        color_table_data = [['Symbol', 'Color', 'Color Name', 'Thread Code', 'Stitches', 'Skeins*']]
+
+        for color in color_list:
             thread_code = f"{color['vendor']} {color['code']}" if color.get('vendor') and color.get('code') else 'Custom'
-            stitch_icon = color.get('stitchIcon', '✕')
             skeins = round(color['count'] / 200, 1)
-
-            table_data.append([
-                stitch_icon,
+            color_table_data.append([
                 color['symbol'],
-                '',  # Color swatch placeholder - we'll style this cell
+                '',  # Color swatch — styled via BACKGROUND
                 color['name'],
                 thread_code,
                 f"{color['count']:,}",
                 str(skeins)
             ])
 
-        # Add totals row
-        table_data.append(['', '', '', '', 'Total:', f"{total_stitches:,}", ''])
+        # Totals row
+        color_table_data.append(['', '', '', 'Total:', f"{total_stitches:,}", ''])
 
-        col_widths = [1.2 * cm, 1.2 * cm, 1 * cm, 4.5 * cm, 2.5 * cm, 2 * cm, 1.5 * cm]
-        legend_table = Table(table_data, colWidths=col_widths)
+        color_table = Table(color_table_data, colWidths=color_col_widths)
 
-        # Build table style
-        table_style = [
-            # Header row
+        color_style = [
+            # Header
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 8),
             ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
-            # Content rows
+            # Content
             ('FONTSIZE', (0, 1), (-1, -1), 8),
-            ('ALIGN', (0, 0), (1, -1), 'CENTER'),  # Stitch icon and Symbol centered
-            ('ALIGN', (5, 0), (6, -1), 'RIGHT'),  # Stitches and skeins right-aligned
+            ('FONTNAME', (0, 1), (0, -1), UNICODE_FONT),  # Symbol column
+            ('ALIGN', (0, 0), (0, -1), 'CENTER'),   # Symbol centered
+            ('ALIGN', (4, 0), (5, -1), 'RIGHT'),    # Stitches and skeins right-aligned
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('TOPPADDING', (0, 1), (-1, -1), 3),
             ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
-            # Grid
+            # Grid (exclude totals row)
             ('GRID', (0, 0), (-1, -2), 0.5, colors.lightgrey),
             # Totals row
-            ('FONTNAME', (4, -1), (5, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (3, -1), (4, -1), 'Helvetica-Bold'),
             ('LINEABOVE', (0, -1), (-1, -1), 1, colors.black),
         ]
 
-        # Add color swatches to each data row (column 2 now)
-        for i, color in enumerate(legend):
-            row_idx = i + 1  # Skip header
+        # Color swatches
+        for i, color in enumerate(color_list):
+            row_idx = i + 1
             hex_color = color['rgbHex']
             try:
                 rgb = tuple(int(hex_color.lstrip('#')[j:j+2], 16) / 255 for j in (0, 2, 4))
-                table_style.append(('BACKGROUND', (2, row_idx), (2, row_idx), colors.Color(*rgb)))
+                color_style.append(('BACKGROUND', (1, row_idx), (1, row_idx), colors.Color(*rgb)))
             except:
                 pass
 
-        legend_table.setStyle(TableStyle(table_style))
-        elements.append(legend_table)
+        color_table.setStyle(TableStyle(color_style))
+        elements.append(color_table)
 
-        # Skein calculation note
-        elements.append(Spacer(1, 8 * mm))
+        # Skein note (after color table)
+        elements.append(Spacer(1, 4 * mm))
         elements.append(Paragraph(
             '*Skein Calculation: Approximate 6-strand embroidery floss skeins required '
             '(estimated at ~200 stitches per skein on 14-count Aida). Actual usage varies '
@@ -320,104 +380,134 @@ class PatternPDFService:
             styles['SmallNote']
         ))
 
-        return elements
-
-    @staticmethod
-    def _build_legend_by_stitch_page(legend_by_stitch: Dict, total_stitches: int, styles) -> List:
-        """Build the color legend page grouped by stitch type."""
-        elements = []
-
-        elements.append(Paragraph('Thread Requirements by Stitch Type', styles['PatternTitle']))
-        elements.append(Spacer(1, 5 * mm))
-
+        # ── Section 2: By Stitch Type (disabled) ─────────────────────
         if not legend_by_stitch:
-            elements.append(Paragraph('No stitches found in exportable layers.', styles['Normal']))
             return elements
 
-        col_widths = [1.2 * cm, 1.2 * cm, 1 * cm, 4.5 * cm, 2.5 * cm, 2 * cm, 1.5 * cm]
+        # Separate lines from cell-based stitch categories
+        line_entries = legend_by_stitch.get('Line', [])
 
-        for category, color_list in legend_by_stitch.items():
-            # Category header
-            category_stitches = sum(c['count'] for c in color_list)
+        # Cell-based stitch category tables are currently disabled.
+        # To re-enable, uncomment the block below.
+        #
+        # cell_categories = {k: v for k, v in legend_by_stitch.items() if k != 'Line'}
+        # stitch_col_widths = [1.2 * cm, 1.0 * cm, 0.8 * cm, 3.5 * cm, 2.5 * cm, 1.8 * cm, 1.5 * cm]
+        # preview_size = 40
+        # img_pt = 28
+        #
+        # for category, cat_colors in cell_categories.items():
+        #     category_stitches = sum(c['count'] for c in cat_colors)
+        #     elements.append(Paragraph(
+        #         f"<b>{category}</b> — {len(cat_colors)} color{'s' if len(cat_colors) != 1 else ''}, "
+        #         f"{category_stitches:,} stitches",
+        #         styles['SectionHeader']
+        #     ))
+        #     table_data = [['Stitch', 'Symbol', 'Color', 'Color Name', 'Thread Code', 'Stitches', 'Skeins*']]
+        #     for color in cat_colors:
+        #         thread_code = f"{color['vendor']} {color['code']}" if color.get('vendor') and color.get('code') else 'Custom'
+        #         skeins = round(color['count'] / 200, 1)
+        #         preview_arr = PatternRenderer.render_stitch_preview(
+        #             color['stitchType'], color['rgbHex'], color['symbol'], size=preview_size)
+        #         img_buffer = PatternPDFService._numpy_to_image_buffer(preview_arr)
+        #         preview_img = Image(img_buffer, width=img_pt, height=img_pt)
+        #         table_data.append([
+        #             preview_img, color['symbol'], '', color['name'],
+        #             thread_code, f"{color['count']:,}", str(skeins)])
+        #     category_table = Table(table_data, colWidths=stitch_col_widths)
+        #     table_style = [
+        #         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        #         ('FONTSIZE', (0, 0), (-1, 0), 8),
+        #         ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+        #         ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+        #         ('FONTSIZE', (0, 1), (-1, -1), 8),
+        #         ('FONTNAME', (1, 1), (1, -1), UNICODE_FONT),
+        #         ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+        #         ('ALIGN', (1, 0), (1, -1), 'CENTER'),
+        #         ('ALIGN', (5, 0), (6, -1), 'RIGHT'),
+        #         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        #         ('TOPPADDING', (0, 1), (-1, -1), 3),
+        #         ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
+        #         ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+        #     ]
+        #     for i, color in enumerate(cat_colors):
+        #         row_idx = i + 1
+        #         hex_color = color['rgbHex']
+        #         try:
+        #             rgb = tuple(int(hex_color.lstrip('#')[j:j+2], 16) / 255 for j in (0, 2, 4))
+        #             table_style.append(('BACKGROUND', (2, row_idx), (2, row_idx), colors.Color(*rgb)))
+        #         except: pass
+        #     category_table.setStyle(TableStyle(table_style))
+        #     elements.append(category_table)
+        #     elements.append(Spacer(1, 6 * mm))
+
+        # Lines section (simplified — no stitch preview needed)
+        if line_entries:
+            line_count = sum(c['count'] for c in line_entries)
             elements.append(Paragraph(
-                f"<b>{category}</b> — {len(color_list)} color{'s' if len(color_list) != 1 else ''}, "
-                f"{category_stitches:,} stitches",
+                f"<b>Line</b> — {len(line_entries)} color{'s' if len(line_entries) != 1 else ''}, "
+                f"{line_count:,} lines",
                 styles['SectionHeader']
             ))
 
-            # Category legend table: Stitch Icon | Symbol | Color | Color Name | Thread Code | Stitches | Skeins
-            table_data = [['Stitch', 'Symbol', 'Color', 'Color Name', 'Thread Code', 'Stitches', 'Skeins*']]
+            line_col_widths = [0.8 * cm, 4.0 * cm, 2.5 * cm, 1.8 * cm]
+            line_table_data = [['Color', 'Color Name', 'Thread Code', 'Lines']]
 
-            for color in color_list:
+            for color in line_entries:
                 thread_code = f"{color['vendor']} {color['code']}" if color.get('vendor') and color.get('code') else 'Custom'
-                stitch_icon = color.get('stitchIcon', '✕')
-                skeins = round(color['count'] / 200, 1)
-
-                table_data.append([
-                    stitch_icon,
-                    color['symbol'],
-                    '',  # Color swatch placeholder
+                line_table_data.append([
+                    '',  # Color swatch
                     color['name'],
                     thread_code,
-                    f"{color['count']:,}",
-                    str(skeins)
+                    f"{color['count']:,}"
                 ])
 
-            category_table = Table(table_data, colWidths=col_widths)
+            line_table = Table(line_table_data, colWidths=line_col_widths)
 
-            # Build table style
-            table_style = [
-                # Header row
+            line_style = [
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                 ('FONTSIZE', (0, 0), (-1, 0), 8),
                 ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
-                # Content rows
                 ('FONTSIZE', (0, 1), (-1, -1), 8),
-                ('ALIGN', (0, 0), (1, -1), 'CENTER'),  # Stitch icon and Symbol centered
-                ('ALIGN', (5, 0), (6, -1), 'RIGHT'),  # Stitches and skeins right-aligned
+                ('ALIGN', (3, 0), (3, -1), 'RIGHT'),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ('TOPPADDING', (0, 1), (-1, -1), 3),
                 ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
-                # Grid
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
             ]
 
-            # Add color swatches to each data row (column 2 now)
-            for i, color in enumerate(color_list):
-                row_idx = i + 1  # Skip header
+            for i, color in enumerate(line_entries):
+                row_idx = i + 1
                 hex_color = color['rgbHex']
                 try:
                     rgb = tuple(int(hex_color.lstrip('#')[j:j+2], 16) / 255 for j in (0, 2, 4))
-                    table_style.append(('BACKGROUND', (2, row_idx), (2, row_idx), colors.Color(*rgb)))
+                    line_style.append(('BACKGROUND', (0, row_idx), (0, row_idx), colors.Color(*rgb)))
                 except:
                     pass
 
-            category_table.setStyle(TableStyle(table_style))
-            elements.append(category_table)
+            line_table.setStyle(TableStyle(line_style))
+            elements.append(line_table)
             elements.append(Spacer(1, 6 * mm))
 
         # Total summary
         elements.append(Paragraph(
-            f"<b>Total: {total_stitches:,} stitches across {len(legend_by_stitch)} stitch type{'s' if len(legend_by_stitch) != 1 else ''}</b>",
+            f"<b>Total: {total_stitches:,} stitches across "
+            f"{len(legend_by_stitch)} stitch type{'s' if len(legend_by_stitch) != 1 else ''}</b>",
             styles['Normal']
-        ))
-
-        # Skein calculation note
-        elements.append(Spacer(1, 8 * mm))
-        elements.append(Paragraph(
-            '*Skein Calculation: Approximate 6-strand embroidery floss skeins required '
-            '(estimated at ~200 stitches per skein on 14-count Aida). Actual usage varies '
-            'based on fabric count, stitch type, and technique. Purchase 1-2 extra skeins per color.',
-            styles['SmallNote']
         ))
 
         return elements
 
     @staticmethod
-    def _build_pattern_page(project, page_def: Dict, styles, grid_style: str = 'symbols') -> List:
+    def _build_pattern_page(project, state, page_def: Dict, styles, render_mode: dict = None) -> List:
         """Build a pattern grid page."""
         elements = []
+
+        if render_mode is None:
+            render_mode = {
+                'show_color': False, 'show_stitch': False,
+                'show_symbol': True, 'show_line': True,
+            }
 
         # Page header
         if page_def['total_rows'] > 1 or page_def['total_cols'] > 1:
@@ -432,17 +522,16 @@ class PatternPDFService:
         ))
 
         # Generate pattern image for this page
-        colored = (grid_style == 'colored')
         page_image = PatternRenderer.render_symbol_page(
-            project.state,
+            state,
             project.width,
             project.height,
             page_def['x_start'],
             page_def['y_start'],
             page_def['x_end'],
             page_def['y_end'],
-            cell_size=14,  # Smaller for PDF to fit on page
-            colored_background=colored
+            cell_size=20,
+            **render_mode
         )
 
         img_buffer = PatternPDFService._numpy_to_image_buffer(page_image)
@@ -451,18 +540,24 @@ class PatternPDFService:
         available_width = PatternPDFService.PAGE_SIZE[0] - 2 * PatternPDFService.MARGIN
         available_height = PatternPDFService.PAGE_SIZE[1] - 2 * PatternPDFService.MARGIN - 4 * cm  # Leave room for header/footer
 
-        # Get image aspect ratio
+        # Get image actual size in points (1 pixel = 1 point at 72 DPI)
         img_height, img_width = page_image.shape[:2]
         aspect_ratio = img_width / img_height
 
-        if aspect_ratio > available_width / available_height:
-            # Width constrained
-            final_width = available_width
-            final_height = final_width / aspect_ratio
-        else:
-            # Height constrained
-            final_height = available_height
-            final_width = final_height * aspect_ratio
+        # Start with actual rendered size (don't scale up small patterns)
+        final_width = img_width
+        final_height = img_height
+
+        # Only scale down if the image exceeds available space
+        if final_width > available_width or final_height > available_height:
+            if aspect_ratio > available_width / available_height:
+                # Width constrained
+                final_width = available_width
+                final_height = final_width / aspect_ratio
+            else:
+                # Height constrained
+                final_height = available_height
+                final_width = final_height * aspect_ratio
 
         pattern_img = Image(img_buffer, width=final_width, height=final_height)
         elements.append(pattern_img)
@@ -515,16 +610,9 @@ class PatternPDFService:
     def _numpy_to_image_buffer(img_array) -> io.BytesIO:
         """Convert numpy array to PNG image buffer."""
         from PIL import Image as PILImage
-        import cv2
 
-        # Ensure RGB format
-        if len(img_array.shape) == 3 and img_array.shape[2] == 3:
-            # Convert from BGR to RGB if needed (OpenCV uses BGR)
-            img_rgb = cv2.cvtColor(img_array, cv2.COLOR_BGR2RGB) if img_array.dtype == 'uint8' else img_array
-        else:
-            img_rgb = img_array
-
-        pil_image = PILImage.fromarray(img_rgb.astype('uint8'))
+        # PatternRenderer already returns RGB arrays, no conversion needed
+        pil_image = PILImage.fromarray(img_array.astype('uint8'))
 
         buffer = io.BytesIO()
         pil_image.save(buffer, format='PNG', optimize=True)

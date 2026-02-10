@@ -39,6 +39,31 @@
             </div>
 
             <div class="mb-4">
+                <label for="difficulty" class="form-label">Difficulty</label>
+                <select class="form-select" id="difficulty" name="difficulty">
+                    <option value="">Not specified</option>
+                    <option value="1">Beginner</option>
+                    <option value="2">Intermediate</option>
+                    <option value="3">Advanced</option>
+                </select>
+            </div>
+
+            <div class="mb-4">
+                <label for="tag-input" class="form-label">Tags</label>
+                <div class="tag-input-wrapper">
+                    <div class="tag-chips" id="tag-chips"></div>
+                    <input type="text"
+                           class="form-control"
+                           id="tag-input"
+                           placeholder="Type a tag and press Enter..."
+                           autocomplete="off">
+                    <div class="tag-suggestions" id="tag-suggestions"></div>
+                </div>
+                <div id="tag-hidden-inputs"></div>
+                <div class="form-text">Press Enter to add a tag. Tags help others discover your pattern.</div>
+            </div>
+
+            <div class="mb-4">
                 <label class="form-label">Canvas Size</label>
                 <div class="size-preview-container">
                     <div class="size-preview-wrapper">
@@ -98,5 +123,6 @@
 <script src="{{ url_for('projects.static', filename='projects/projects.js') }}"></script>
 <script>
     initSizePreview();
+    initTagInput('tag-input', 'tag-hidden-inputs', 'tag-chips', 'tag-suggestions');
 </script>
 {% endblock %}

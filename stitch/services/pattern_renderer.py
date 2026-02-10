@@ -5,19 +5,214 @@ import numpy as np
 from typing import Dict, List, Tuple, Optional
 from pathlib import Path
 import base64
+from PIL import Image, ImageDraw, ImageFont
+
+from stitch.models.stitch import STITCH_TYPES
+
+
+def _stitch_category_order() -> List[str]:
+    """Derive ordered unique categories from STITCH_TYPES by sort_order."""
+    seen = set()
+    order = []
+    for defn in sorted(STITCH_TYPES.values(), key=lambda d: d['sort_order']):
+        cat = defn['category']
+        if cat not in seen:
+            seen.add(cat)
+            order.append(cat)
+    return order
+
+
+STITCH_CATEGORY_ORDER = _stitch_category_order()
+
+
+def _compute_symbol_placement(stitch_type: str):
+    """Derive symbol center and scale from a stitch type's path_data bounding box.
+
+    Returns (cx, cy, scale) where cx/cy are normalized 0..1 center coordinates
+    and scale is the bbox extent (max of width, height).
+    Quarter stitches are centered (since only one stitch per cell).
+    """
+    defn = STITCH_TYPES.get(stitch_type)
+    path_data = defn.get('path_data') if defn else None
+    if not path_data:
+        return (0.5, 0.5, 0.8)
+
+    all_x = []
+    all_y = []
+    for segment in path_data:
+        for point in segment:
+            all_x.append(point[0])
+            all_y.append(point[1])
+
+    min_x, max_x = min(all_x), max(all_x)
+    min_y, max_y = min(all_y), max(all_y)
+    scale = max(max_x - min_x, max_y - min_y)
+
+    # Quarter stitches: place symbol at the quadrant center
+    if defn.get('category') == 'Quarter Stitch':
+        if stitch_type == 'quarter-tl':
+            return (0.25, 0.25, scale)
+        if stitch_type == 'quarter-tr':
+            return (0.75, 0.25, scale)
+        if stitch_type == 'quarter-bl':
+            return (0.25, 0.75, scale)
+        if stitch_type == 'quarter-br':
+            return (0.75, 0.75, scale)
+        return (0.5, 0.5, scale)
+
+    # Three-quarter stitches: center symbol in the triangle half
+    if defn.get('category') == 'Three-Quarter Stitch':
+        if stitch_type == 'three-quarter-tl':    # top-left triangle
+            return (0.33, 0.33, scale)
+        if stitch_type == 'three-quarter-br':    # bottom-right triangle
+            return (0.67, 0.67, scale)
+        if stitch_type == 'three-quarter-tr':    # top-right triangle
+            return (0.67, 0.33, scale)
+        if stitch_type == 'three-quarter-bl':    # bottom-left triangle
+            return (0.33, 0.67, scale)
+
+    cx = (min_x + max_x) / 2
+    cy = (min_y + max_y) / 2
+    return (cx, cy, scale)
+
+
+SYMBOL_PLACEMENTS = {
+    st: _compute_symbol_placement(st) for st in STITCH_TYPES
+}
+
+
+def _snap_bbox(stitch_type: str):
+    """Snap a bounding box to clean cell edges.
+
+    Returns (x0, y0, x1, y1) normalized 0..1.  Coords near the cell
+    boundary (<=0.15 or >=0.85) snap to 0.0/1.0.
+    """
+    defn = STITCH_TYPES.get(stitch_type)
+    path_data = defn.get('path_data') if defn else None
+    if not path_data:
+        return (0.0, 0.0, 1.0, 1.0)
+
+    all_x = []
+    all_y = []
+    for segment in path_data:
+        for point in segment:
+            all_x.append(point[0])
+            all_y.append(point[1])
+
+    min_x, max_x = min(all_x), max(all_x)
+    min_y, max_y = min(all_y), max(all_y)
+
+    if min_x <= 0.15:
+        min_x = 0.0
+    if min_y <= 0.15:
+        min_y = 0.0
+    if max_x >= 0.85:
+        max_x = 1.0
+    if max_y >= 0.85:
+        max_y = 1.0
+
+    return (min_x, min_y, max_x, max_y)
+
+
+def _compute_fill_polygon(stitch_type: str):
+    """Compute a fill polygon for a stitch type.
+
+    Returns a list of (x, y) normalized coordinate tuples.
+    - Half stitches: triangle on the stitch side of the diagonal
+    - Three-quarter stitches: L-shape (full cell minus the opposite quadrant)
+    - Quarter stitches: centered rectangle (same size as petite)
+    - Full / line: full cell rectangle
+    """
+    defn = STITCH_TYPES.get(stitch_type)
+    if not defn or not defn.get('path_data'):
+        return [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+
+    category = defn.get('category', '')
+
+    # Quarter stitch → fill the actual quadrant
+    if category == 'Quarter Stitch':
+        if stitch_type == 'quarter-tl':
+            return [(0, 0), (0.5, 0), (0.5, 0.5), (0, 0.5)]
+        if stitch_type == 'quarter-tr':
+            return [(0.5, 0), (1, 0), (1, 0.5), (0.5, 0.5)]
+        if stitch_type == 'quarter-bl':
+            return [(0, 0.5), (0.5, 0.5), (0.5, 1), (0, 1)]
+        if stitch_type == 'quarter-br':
+            return [(0.5, 0.5), (1, 0.5), (1, 1), (0.5, 1)]
+
+    # Half stitch → triangle
+    if category == 'Half Stitch':
+        seg = defn['path_data'][0]
+        # Slash (/): start_y > end_y → upper-left triangle
+        if seg[0][1] > seg[-1][1]:
+            return [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)]
+        # Backslash (\): → upper-right triangle
+        return [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)]
+
+    # Three-quarter → diagonal half of cell (two opposite three-quarters fill the whole cell)
+    if category == 'Three-Quarter Stitch':
+        if stitch_type == 'three-quarter-tl':    # slash / + quarter from TL → top-left triangle
+            return [(0, 0), (1, 0), (0, 1)]
+        if stitch_type == 'three-quarter-br':    # slash / + quarter from BR → bottom-right triangle
+            return [(1, 0), (1, 1), (0, 1)]
+        if stitch_type == 'three-quarter-tr':    # backslash \ + quarter from TR → top-right triangle
+            return [(0, 0), (1, 0), (1, 1)]
+        if stitch_type == 'three-quarter-bl':    # backslash \ + quarter from BL → bottom-left triangle
+            return [(0, 0), (0, 1), (1, 1)]
+        return [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+
+    # Everything else: snapped bounding-box rectangle
+    x0, y0, x1, y1 = _snap_bbox(stitch_type)
+    return [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+
+
+FILL_POLYGONS = {
+    st: _compute_fill_polygon(st) for st in STITCH_TYPES
+}
 
 
 class PatternRenderer:
+    _font_cache: Dict[int, ImageFont.FreeTypeFont] = {}
+
+    @staticmethod
+    def _get_symbol_font(size: int) -> ImageFont.FreeTypeFont:
+        """Load a Unicode-capable font at the given pixel size, with caching."""
+        if size in PatternRenderer._font_cache:
+            return PatternRenderer._font_cache[size]
+
+        font_candidates = [
+            'DejaVuSans.ttf',
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+            '/usr/share/fonts/TTF/DejaVuSans.ttf',
+            '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
+            '/System/Library/Fonts/Helvetica.ttc',
+            'NotoSans-Regular.ttf',
+        ]
+
+        for font_name in font_candidates:
+            try:
+                font = ImageFont.truetype(font_name, size)
+                PatternRenderer._font_cache[size] = font
+                return font
+            except (IOError, OSError):
+                continue
+
+        font = ImageFont.load_default(size)
+        PatternRenderer._font_cache[size] = font
+        return font
     """Render cross-stitch patterns to images"""
 
     @staticmethod
     def render_colored_pattern(state: Dict, width: int, height: int,
                               cell_size: int = 20) -> np.ndarray:
         """
-        Render pattern with colored cross stitches
+        Render pattern with colored stitches using stitch definitions.
+
+        Supports both cell-based (path-mode) and linear-mode stitches.
+        Background is filled with the project cloth color.
 
         Args:
-            state: Project state with layers and palette
+            state: Project state with layers, palette, and optional clothColor
             width: Grid width
             height: Grid height
             cell_size: Size of each cell in pixels
@@ -25,15 +220,20 @@ class PatternRenderer:
         Returns:
             RGB numpy array of the rendered pattern
         """
-        # Create white canvas
+
+        # Background: cloth color from state, default white
+        bg_rgb = PatternRenderer._hex_to_rgb_tuple(
+            state.get('clothColor', '#FFFFFF'))
+
         img_width = width * cell_size
         img_height = height * cell_size
-        image = np.full((img_height, img_width, 3), 255, dtype=np.uint8)
+        image = np.full((img_height, img_width, 3), bg_rgb, dtype=np.uint8)
 
         palette = state['palette']
         layers = state['layers']
+        thickness = max(1, cell_size // 10)
 
-        # Render only visible and exportable layers
+        # Render only visible and exportable raster layers
         for layer in layers:
             if not layer.get('visible', True):
                 continue
@@ -42,46 +242,70 @@ class PatternRenderer:
             if layer['type'] != 'raster':
                 continue
 
+            # --- Cells (path-mode stitches) ---
             cells = layer.get('cells', {})
 
-            for cell_key, cell_data in cells.items():
-                # Parse cell position from key
-                cell_index = int(cell_key)
-                y = cell_index // width
-                x = cell_index % width
+            for cell_key, cell_stitches in cells.items():
+                x, y = cell_key.split(',')
+                x, y = int(x), int(y)
 
                 if x >= width or y >= height:
                     continue
 
-                palette_index = cell_data.get('paletteIndex', 0)
+                stitch_list = cell_stitches if isinstance(cell_stitches, list) else [cell_stitches]
+                for cell_data in stitch_list:
+                    palette_index = cell_data.get('paletteIndex', 0)
+                    if palette_index >= len(palette):
+                        continue
+
+                    rgb = PatternRenderer._resolve_color(palette[palette_index])
+
+                    # Look up stitch definition for pathData
+                    stitch_type = cell_data.get('stitchType', 'full')
+                    defn = STITCH_TYPES.get(stitch_type)
+                    path_data = defn.get('path_data') if defn else None
+
+                    if path_data:
+                        PatternRenderer._draw_stitch_paths(
+                            image, x * cell_size, y * cell_size,
+                            cell_size, rgb, path_data, thickness
+                        )
+                    else:
+                        PatternRenderer._draw_cross_stitch(
+                            image, x * cell_size, y * cell_size, cell_size, rgb
+                        )
+
+            # --- Paths (linear-mode stitches) ---
+            paths = layer.get('paths', [])
+
+            for path in paths:
+                palette_index = path.get('paletteIndex', 0)
                 if palette_index >= len(palette):
                     continue
 
-                color = palette[palette_index]
+                rgb = PatternRenderer._resolve_color(palette[palette_index])
 
-                # Get RGB color
-                if 'rgb' in color:
-                    rgb = color['rgb']
-                elif 'rgbHex' in color:
-                    hex_color = color['rgbHex'].lstrip('#')
-                    rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-                else:
-                    rgb = (0, 0, 0)
+                x1 = int(path['startX'] * cell_size)
+                y1 = int(path['startY'] * cell_size)
+                x2 = int(path['endX'] * cell_size)
+                y2 = int(path['endY'] * cell_size)
 
-                # Draw cross stitch (X pattern)
-                PatternRenderer._draw_cross_stitch(
-                    image, x * cell_size, y * cell_size, cell_size, rgb
-                )
+                line_thickness = max(1, cell_size // 20)
+                cv2.line(image, (x1, y1), (x2, y2), rgb, line_thickness,
+                         cv2.LINE_AA)
 
         return image
 
     @staticmethod
     def render_symbol_pattern(state: Dict, width: int, height: int,
-                             cell_size: int = 30) -> np.ndarray:
+                             cell_size: int = 40) -> np.ndarray:
         """
         Render pattern with symbols instead of colors.
 
-        Each unique (color, stitch_type) combination gets a unique symbol.
+        Uses per-color symbols from the palette (matching professional
+        cross-stitch convention: one symbol per thread color).
+        Symbol placement and size are derived from the stitch type's path_data
+        bounding box so quarter stitches get small symbols in their quadrant, etc.
 
         Args:
             state: Project state with layers and palette
@@ -100,16 +324,18 @@ class PatternRenderer:
         palette = state['palette']
         layers = state['layers']
 
-        # Generate symbol map for (color, stitch_type) combinations
-        symbol_map = PatternRenderer._generate_symbol_map(state, width, height)
-
         # Draw grid lines
         PatternRenderer._draw_grid(image, width, height, cell_size)
 
         # Draw grid numbers
         PatternRenderer._draw_grid_numbers(image, width, height, cell_size)
 
-        # Render only visible and exportable layers
+        # Draw symbols using PIL for Unicode support
+        # Cache fonts by size to avoid re-creating for each stitch type
+        font_cache = {}
+        pil_img = Image.fromarray(image)
+        draw = ImageDraw.Draw(pil_img)
+
         for layer in layers:
             if not layer.get('visible', True):
                 continue
@@ -120,29 +346,36 @@ class PatternRenderer:
 
             cells = layer.get('cells', {})
 
-            for cell_key, cell_data in cells.items():
-                # Parse cell position from key
-                cell_index = int(cell_key)
-                y = cell_index // width
-                x = cell_index % width
+            for cell_key, cell_stitches in cells.items():
+                x, y = cell_key.split(',')
+                x, y = int(x), int(y)
 
                 if x >= width or y >= height:
                     continue
 
-                palette_index = cell_data.get('paletteIndex', 0)
-                stitch_type = cell_data.get('stitchType', 'full')
+                stitch_list = cell_stitches if isinstance(cell_stitches, list) else [cell_stitches]
+                for cell_data in stitch_list:
+                    palette_index = cell_data.get('paletteIndex', 0)
+                    if palette_index >= len(palette):
+                        continue
 
-                if palette_index >= len(palette):
-                    continue
+                    symbol = palette[palette_index].get('symbol', '?')
 
-                # Get symbol for this (color, stitch_type) combination
-                symbol = symbol_map.get((palette_index, stitch_type), '?')
+                    stitch_type = cell_data.get('stitchType', 'full')
+                    cx, cy, scale = SYMBOL_PLACEMENTS.get(stitch_type, (0.5, 0.5, 0.8))
+                    font_size = max(6, int(cell_size * 0.6 * scale))
 
-                # Draw symbol
-                PatternRenderer._draw_symbol(
-                    image, x * cell_size, y * cell_size, cell_size, symbol
-                )
+                    if font_size not in font_cache:
+                        font_cache[font_size] = PatternRenderer._get_symbol_font(font_size)
+                    font = font_cache[font_size]
 
+                    PatternRenderer._draw_symbol_pil(
+                        draw, font,
+                        x * cell_size, y * cell_size, cell_size,
+                        symbol, (0, 0, 0), cx, cy
+                    )
+
+        image[:] = np.array(pil_img)
         return image
 
     @staticmethod
@@ -171,39 +404,60 @@ class PatternRenderer:
         )
 
     @staticmethod
-    def _draw_symbol(image: np.ndarray, x: int, y: int,
-                    size: int, symbol: str) -> None:
-        """Draw a symbol in a cell (black text)"""
-        PatternRenderer._draw_symbol_colored(image, x, y, size, symbol, (0, 0, 0))
+    def _hex_to_rgb_tuple(hex_color: str) -> Tuple[int, int, int]:
+        """Convert hex color string to RGB tuple."""
+        hex_color = hex_color.lstrip('#')
+        return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
 
     @staticmethod
-    def _draw_symbol_colored(image: np.ndarray, x: int, y: int,
-                             size: int, symbol: str,
-                             color: Tuple[int, int, int]) -> None:
-        """Draw a symbol in a cell with specified color"""
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = size / 40  # Scale font based on cell size
-        thickness = max(1, size // 20)
+    def _resolve_color(color: Dict) -> Tuple[int, int, int]:
+        """Resolve a palette color entry to an RGB tuple."""
+        if 'rgb' in color:
+            return tuple(color['rgb'])
+        elif 'rgbHex' in color:
+            return PatternRenderer._hex_to_rgb_tuple(color['rgbHex'])
+        return (0, 0, 0)
 
-        # Get text size for centering
-        (text_width, text_height), baseline = cv2.getTextSize(
-            symbol, font, font_scale, thickness
-        )
+    @staticmethod
+    def _draw_stitch_paths(image: np.ndarray, x: int, y: int,
+                           cell_size: int, color: Tuple[int, int, int],
+                           path_data: list, thickness: int) -> None:
+        """Draw stitch using normalized pathData within a cell.
 
-        # Center the text
-        text_x = x + (size - text_width) // 2
-        text_y = y + (size + text_height) // 2
+        Each segment in path_data is a list of [x, y] points normalized
+        to 0..1. Points are scaled by cell_size and offset by the cell
+        origin (x, y).
+        """
+        for segment in path_data:
+            if len(segment) < 2:
+                continue
+            for i in range(len(segment) - 1):
+                pt1 = (int(x + segment[i][0] * cell_size),
+                        int(y + segment[i][1] * cell_size))
+                pt2 = (int(x + segment[i + 1][0] * cell_size),
+                        int(y + segment[i + 1][1] * cell_size))
+                cv2.line(image, pt1, pt2, color, thickness, cv2.LINE_AA)
 
-        cv2.putText(
-            image,
-            symbol,
-            (text_x, text_y),
-            font,
-            font_scale,
-            color,
-            thickness,
-            cv2.LINE_AA
-        )
+    @staticmethod
+    def _draw_symbol_pil(draw: ImageDraw.ImageDraw,
+                         font: ImageFont.FreeTypeFont,
+                         x: int, y: int, size: int,
+                         symbol: str,
+                         color: Tuple[int, int, int],
+                         cx: float = 0.5,
+                         cy: float = 0.5) -> None:
+        """Draw a Unicode symbol at (cx, cy) within a cell using PIL.
+
+        cx, cy are normalized 0..1 coordinates for the symbol center.
+        """
+        bbox = font.getbbox(symbol)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+
+        text_x = int(x + cx * size - text_width / 2) - bbox[0]
+        text_y = int(y + cy * size - text_height / 2) - bbox[1]
+
+        draw.text((text_x, text_y), symbol, fill=color, font=font)
 
     @staticmethod
     def _draw_grid(image: np.ndarray, width: int, height: int,
@@ -300,128 +554,13 @@ class PatternRenderer:
         image.resize(new_image.shape, refcheck=False)
         image[:] = new_image
 
-    # Stitch type categories for grouping
-    STITCH_CATEGORIES = {
-        'full': 'Full Cross',
-        'half-slash': 'Half Stitch',
-        'half-backslash': 'Half Stitch',
-        'quarter-tl': 'Quarter Stitch',
-        'quarter-tr': 'Quarter Stitch',
-        'quarter-bl': 'Quarter Stitch',
-        'quarter-br': 'Quarter Stitch',
-        'three-quarter-tl': 'Three-Quarter Stitch',
-        'three-quarter-tr': 'Three-Quarter Stitch',
-        'three-quarter-bl': 'Three-Quarter Stitch',
-        'three-quarter-br': 'Three-Quarter Stitch',
-        'petite': 'Special Stitch',
-        'french-knot': 'Special Stitch',
-        'long-vertical': 'Long Stitch',
-        'long-horizontal': 'Long Stitch',
-        'backstitch-horizontal': 'Backstitch',
-        'backstitch-vertical': 'Backstitch',
-        'backstitch-slash': 'Backstitch',
-        'backstitch-backslash': 'Backstitch',
-    }
-
-    # Stitch type icons (matching JS stitch definitions)
-    STITCH_ICONS = {
-        'full': '✕',
-        'half-slash': '/',
-        'half-backslash': '\\',
-        'quarter-tl': '◸',
-        'quarter-tr': '◹',
-        'quarter-bl': '◺',
-        'quarter-br': '◿',
-        'three-quarter-tl': '⟋',
-        'three-quarter-tr': '⟍',
-        'three-quarter-bl': '⟍',
-        'three-quarter-br': '⟋',
-        'petite': '✕',
-        'french-knot': '•',
-        'long-vertical': '|',
-        'long-horizontal': '―',
-        'backstitch-horizontal': '─',
-        'backstitch-vertical': '│',
-        'backstitch-slash': '╱',
-        'backstitch-backslash': '╲',
-    }
-
-    STITCH_CATEGORY_ORDER = [
-        'Full Cross',
-        'Half Stitch',
-        'Quarter Stitch',
-        'Three-Quarter Stitch',
-        'Special Stitch',
-        'Long Stitch',
-        'Backstitch',
-    ]
-
-    # Available symbols for pattern charts (easily distinguishable)
-    SYMBOLS = [
-        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-        'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-        '1', '2', '3', '4', '5', '6', '7', '8', '9', '0',
-        '@', '#', '$', '%', '&', '*', '+', '=', '~',
-        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
-        'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-    ]
-
-    @staticmethod
-    def _generate_symbol_map(state: Dict, width: int, height: int) -> Dict[Tuple[int, str], str]:
-        """
-        Generate unique symbols for each (color, stitch_type) combination.
-
-        Args:
-            state: Project state with layers and palette
-            width: Grid width
-            height: Grid height
-
-        Returns:
-            Dict mapping (paletteIndex, stitchType) tuples to unique symbols
-        """
-        palette = state['palette']
-        layers = state['layers']
-
-        # Find all unique (color, stitch_type) combinations used
-        used_combinations = set()
-
-        for layer in layers:
-            if not layer.get('visible', True):
-                continue
-            if not layer.get('activeForExport', True):
-                continue
-            if layer['type'] != 'raster':
-                continue
-
-            cells = layer.get('cells', {})
-
-            for cell_data in cells.values():
-                palette_index = cell_data.get('paletteIndex', 0)
-                stitch_type = cell_data.get('stitchType', 'full')
-
-                if palette_index < len(palette):
-                    used_combinations.add((palette_index, stitch_type))
-
-        # Sort for consistent symbol assignment (by palette index, then stitch type)
-        sorted_combinations = sorted(used_combinations, key=lambda x: (x[0], x[1]))
-
-        # Assign symbols
-        symbol_map = {}
-        for i, combo in enumerate(sorted_combinations):
-            if i < len(PatternRenderer.SYMBOLS):
-                symbol_map[combo] = PatternRenderer.SYMBOLS[i]
-            else:
-                # Fallback for many combinations: use index
-                symbol_map[combo] = str(i)
-
-        return symbol_map
-
     @staticmethod
     def generate_legend(state: Dict, width: int, height: int) -> List[Dict]:
         """
         Generate legend data with color and stitch type usage statistics.
 
-        Each unique (color, stitch_type) combination gets its own symbol and entry.
+        Uses per-color symbols from the palette (one symbol per thread color).
+        Each unique (color, stitch_type) combination is a separate legend entry.
 
         Args:
             state: Project state with layers and palette
@@ -433,9 +572,6 @@ class PatternRenderer:
         """
         palette = state['palette']
         layers = state['layers']
-
-        # Generate symbol map for all combinations
-        symbol_map = PatternRenderer._generate_symbol_map(state, width, height)
 
         # Count usage per (color, stitch_type) combination
         combo_counts = {}
@@ -450,24 +586,34 @@ class PatternRenderer:
 
             cells = layer.get('cells', {})
 
-            for cell_data in cells.values():
-                palette_index = cell_data.get('paletteIndex', 0)
-                stitch_type = cell_data.get('stitchType', 'full')
+            for cell_stitches in cells.values():
+                stitch_list = cell_stitches if isinstance(cell_stitches, list) else [cell_stitches]
+                for cell_data in stitch_list:
+                    palette_index = cell_data.get('paletteIndex', 0)
+                    stitch_type = cell_data.get('stitchType', 'full')
 
+                    if palette_index < len(palette):
+                        key = (palette_index, stitch_type)
+                        combo_counts[key] = combo_counts.get(key, 0) + 1
+
+            for path in layer.get('paths', []):
+                palette_index = path.get('paletteIndex', 0)
+                stitch_type = path.get('stitchType', 'line')
                 if palette_index < len(palette):
                     key = (palette_index, stitch_type)
                     combo_counts[key] = combo_counts.get(key, 0) + 1
 
-        # Build legend entries
+        # Build legend entries using per-color palette symbols
         legend = []
         for (palette_index, stitch_type), count in combo_counts.items():
             if count == 0:
                 continue
 
             color = palette[palette_index]
-            symbol = symbol_map.get((palette_index, stitch_type), '?')
-            category = PatternRenderer.STITCH_CATEGORIES.get(stitch_type, 'Full Cross')
-            stitch_icon = PatternRenderer.STITCH_ICONS.get(stitch_type, '✕')
+            symbol = color.get('symbol', '?')
+            defn = STITCH_TYPES.get(stitch_type, {})
+            category = defn.get('category', 'Full Cross')
+            stitch_icon = defn.get('icon', '✕')
 
             legend.append({
                 'paletteIndex': palette_index,
@@ -483,8 +629,8 @@ class PatternRenderer:
                 'count': count
             })
 
-        # Sort by usage (most used first)
-        legend.sort(key=lambda x: x['count'], reverse=True)
+        # Sort by vendor code for easy thread organizer lookup
+        legend.sort(key=lambda x: (x['vendor'] or '', x['code'] or ''))
 
         return legend
 
@@ -493,7 +639,7 @@ class PatternRenderer:
         """
         Generate legend data grouped by stitch type category.
 
-        Each unique (color, stitch_type) combination gets its own symbol.
+        Uses per-color symbols from the palette (one symbol per thread color).
 
         Args:
             state: Project state with layers and palette
@@ -505,9 +651,6 @@ class PatternRenderer:
         """
         palette = state['palette']
         layers = state['layers']
-
-        # Generate symbol map for all combinations
-        symbol_map = PatternRenderer._generate_symbol_map(state, width, height)
 
         # Count usage per (color, stitch_type) combination
         color_stitch_counts = {}
@@ -522,25 +665,35 @@ class PatternRenderer:
 
             cells = layer.get('cells', {})
 
-            for cell_data in cells.values():
-                palette_index = cell_data.get('paletteIndex', 0)
-                stitch_type = cell_data.get('stitchType', 'full')
+            for cell_stitches in cells.values():
+                stitch_list = cell_stitches if isinstance(cell_stitches, list) else [cell_stitches]
+                for cell_data in stitch_list:
+                    palette_index = cell_data.get('paletteIndex', 0)
+                    stitch_type = cell_data.get('stitchType', 'full')
 
+                    if palette_index < len(palette):
+                        key = (palette_index, stitch_type)
+                        color_stitch_counts[key] = color_stitch_counts.get(key, 0) + 1
+
+            for path in layer.get('paths', []):
+                palette_index = path.get('paletteIndex', 0)
+                stitch_type = path.get('stitchType', 'line')
                 if palette_index < len(palette):
                     key = (palette_index, stitch_type)
                     color_stitch_counts[key] = color_stitch_counts.get(key, 0) + 1
 
-        # Group by stitch category
-        grouped = {cat: [] for cat in PatternRenderer.STITCH_CATEGORY_ORDER}
+        # Group by stitch category, using per-color palette symbols
+        grouped = {cat: [] for cat in STITCH_CATEGORY_ORDER}
 
         for (palette_index, stitch_type), count in color_stitch_counts.items():
             if count == 0:
                 continue
 
             color = palette[palette_index]
-            symbol = symbol_map.get((palette_index, stitch_type), '?')
-            category = PatternRenderer.STITCH_CATEGORIES.get(stitch_type, 'Full Cross')
-            stitch_icon = PatternRenderer.STITCH_ICONS.get(stitch_type, '✕')
+            symbol = color.get('symbol', '?')
+            defn = STITCH_TYPES.get(stitch_type, {})
+            category = defn.get('category', 'Full Cross')
+            stitch_icon = defn.get('icon', '✕')
 
             entry = {
                 'paletteIndex': palette_index,
@@ -558,9 +711,9 @@ class PatternRenderer:
             if category in grouped:
                 grouped[category].append(entry)
 
-        # Sort each category by count (most used first)
+        # Sort each category by vendor code for easy thread lookup
         for category in grouped:
-            grouped[category].sort(key=lambda x: x['count'], reverse=True)
+            grouped[category].sort(key=lambda x: (x['vendor'] or '', x['code'] or ''))
 
         # Remove empty categories
         grouped = {k: v for k, v in grouped.items() if v}
@@ -641,15 +794,72 @@ class PatternRenderer:
         return (255, 255, 255) if luminance < 0.5 else (0, 0, 0)
 
     @staticmethod
+    def render_stitch_preview(stitch_type: str, rgb_hex: str, symbol: str,
+                              size: int = 40) -> np.ndarray:
+        """Render a single-cell stitch preview image.
+
+        Produces a small RGB image showing the colored fill polygon, stitch
+        paths, and symbol — exactly as seen on the editor canvas.
+
+        Args:
+            stitch_type: Stitch type key (e.g. 'full', 'three-quarter-tl')
+            rgb_hex: Thread color as hex string (e.g. '#FF0000')
+            symbol: Unicode symbol character for this color
+            size: Image size in pixels (square)
+
+        Returns:
+            RGB numpy array of size×size
+        """
+        rgb = PatternRenderer._hex_to_rgb_tuple(rgb_hex)
+        image = np.full((size, size, 3), 255, dtype=np.uint8)
+
+        # Pass 1: Fill polygon with thread color
+        poly = FILL_POLYGONS.get(stitch_type,
+                                 [(0, 0), (1, 0), (1, 1), (0, 1)])
+        pts = np.array(
+            [[int(px * size), int(py * size)] for px, py in poly],
+            dtype=np.int32
+        )
+        cv2.fillPoly(image, [pts], rgb)
+
+        # Pass 2: Draw stitch paths in a contrasting shade
+        defn = STITCH_TYPES.get(stitch_type)
+        path_data = defn.get('path_data') if defn else None
+        if path_data:
+            stitch_color = PatternRenderer._get_contrasting_color(rgb)
+            thickness = max(1, size // 12)
+            PatternRenderer._draw_stitch_paths(
+                image, 0, 0, size, stitch_color, path_data, thickness
+            )
+
+        # Pass 3: Draw symbol using PIL
+        cx, cy, scale = SYMBOL_PLACEMENTS.get(stitch_type, (0.5, 0.5, 0.8))
+        font_size = max(6, int(size * 0.6 * scale))
+        font = PatternRenderer._get_symbol_font(font_size)
+        symbol_color = PatternRenderer._get_contrasting_color(rgb)
+
+        pil_img = Image.fromarray(image)
+        draw = ImageDraw.Draw(pil_img)
+        PatternRenderer._draw_symbol_pil(
+            draw, font, 0, 0, size, symbol, symbol_color, cx, cy
+        )
+        image[:] = np.array(pil_img)
+
+        return image
+
+    @staticmethod
     def render_symbol_page(state: Dict, width: int, height: int,
                            x_start: int, y_start: int,
                            x_end: int, y_end: int,
-                           cell_size: int = 20,
-                           colored_background: bool = False) -> np.ndarray:
+                           cell_size: int = 40,
+                           show_color: bool = False,
+                           show_stitch: bool = False,
+                           show_symbol: bool = True,
+                           show_line: bool = True) -> np.ndarray:
         """
-        Render a specific region of the pattern with symbols.
+        Render a specific region of the pattern with configurable display options.
 
-        Each unique (color, stitch_type) combination gets a unique symbol.
+        Uses per-color symbols from the palette.
 
         Args:
             state: Project state with layers and palette
@@ -660,11 +870,15 @@ class PatternRenderer:
             x_end: End X coordinate (exclusive)
             y_end: End Y coordinate (exclusive)
             cell_size: Size of each cell in pixels
-            colored_background: If True, draw colored backgrounds with adaptive symbol colors
+            show_color: Fill cell backgrounds with palette colors
+            show_stitch: Draw stitch path shapes in cells
+            show_symbol: Draw text symbols in cells
+            show_line: Draw linear-mode stitch paths
 
         Returns:
             RGB numpy array of the rendered pattern region
         """
+
         region_width = x_end - x_start
         region_height = y_end - y_start
 
@@ -676,11 +890,8 @@ class PatternRenderer:
         palette = state['palette']
         layers = state['layers']
 
-        # Generate symbol map for (color, stitch_type) combinations
-        symbol_map = PatternRenderer._generate_symbol_map(state, width, height)
-
-        # If colored background, draw cell backgrounds first (before grid)
-        if colored_background:
+        # Pass 1: Color backgrounds (before grid)
+        if show_color:
             for layer in layers:
                 if not layer.get('visible', True):
                     continue
@@ -691,49 +902,144 @@ class PatternRenderer:
 
                 cells = layer.get('cells', {})
 
-                for cell_key, cell_data in cells.items():
-                    cell_index = int(cell_key)
-                    y = cell_index // width
-                    x = cell_index % width
+                for cell_key, cell_stitches in cells.items():
+                    x, y = cell_key.split(',')
+                    x, y = int(x), int(y)
 
                     if x < x_start or x >= x_end:
                         continue
                     if y < y_start or y >= y_end:
                         continue
 
-                    palette_index = cell_data.get('paletteIndex', 0)
-                    if palette_index >= len(palette):
-                        continue
-
-                    color = palette[palette_index]
-
-                    # Get RGB color
-                    if 'rgbHex' in color:
-                        hex_color = color['rgbHex'].lstrip('#')
-                        rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-                    else:
-                        rgb = (200, 200, 200)
-
                     # Calculate position relative to region
                     rel_x = (x - x_start) * cell_size
                     rel_y = (y - y_start) * cell_size
 
-                    # Fill cell with color
-                    cv2.rectangle(
-                        image,
-                        (rel_x, rel_y),
-                        (rel_x + cell_size - 1, rel_y + cell_size - 1),
-                        rgb,
-                        -1  # Filled
-                    )
+                    stitch_list = cell_stitches if isinstance(cell_stitches, list) else [cell_stitches]
+                    for cell_data in stitch_list:
+                        palette_index = cell_data.get('paletteIndex', 0)
+                        if palette_index >= len(palette):
+                            continue
 
-        # Draw grid lines
+                        rgb = PatternRenderer._resolve_color(palette[palette_index])
+
+                        # Fill stitch region with color (polygon)
+                        stitch_type = cell_data.get('stitchType', 'full')
+                        poly = FILL_POLYGONS.get(stitch_type,
+                            [(0, 0), (1, 0), (1, 1), (0, 1)])
+                        pts = np.array(
+                            [[int(rel_x + px * cell_size),
+                              int(rel_y + py * cell_size)]
+                             for px, py in poly],
+                            dtype=np.int32
+                        )
+                        cv2.fillPoly(image, [pts], rgb)
+
+        # Pass 2: Grid lines (always)
         PatternRenderer._draw_region_grid(
             image, region_width, region_height, cell_size,
             x_start, y_start
         )
 
-        # Render only visible and exportable layers
+        # Pass 3: Stitch shapes (cv2)
+        line_thickness = max(1, cell_size // 12)
+        stitch_thickness = max(2, line_thickness * 2)
+
+        if show_stitch:
+            for layer in layers:
+                if not layer.get('visible', True):
+                    continue
+                if not layer.get('activeForExport', True):
+                    continue
+                if layer['type'] != 'raster':
+                    continue
+
+                for cell_key, cell_stitches in layer.get('cells', {}).items():
+                    x, y = cell_key.split(',')
+                    x, y = int(x), int(y)
+
+                    if x < x_start or x >= x_end or y < y_start or y >= y_end:
+                        continue
+
+                    rel_x = (x - x_start) * cell_size
+                    rel_y = (y - y_start) * cell_size
+
+                    stitch_list = cell_stitches if isinstance(cell_stitches, list) else [cell_stitches]
+                    for cell_data in stitch_list:
+                        palette_index = cell_data.get('paletteIndex', 0)
+                        stitch_type = cell_data.get('stitchType', 'full')
+                        if palette_index >= len(palette):
+                            continue
+
+                        rgb = PatternRenderer._resolve_color(palette[palette_index])
+
+                        defn = STITCH_TYPES.get(stitch_type)
+                        path_data = defn.get('path_data') if defn else None
+
+                        stitch_color = PatternRenderer._get_contrasting_color(rgb) if show_color else rgb
+
+                        if path_data:
+                            PatternRenderer._draw_stitch_paths(
+                                image, rel_x, rel_y,
+                                cell_size, stitch_color, path_data, stitch_thickness
+                            )
+                        else:
+                            PatternRenderer._draw_cross_stitch(
+                                image, rel_x, rel_y, cell_size, stitch_color
+                            )
+
+        # Pass 4: Symbols (PIL for Unicode support)
+        if show_symbol:
+            font_cache = {}
+            pil_img = Image.fromarray(image)
+            draw = ImageDraw.Draw(pil_img)
+
+            for layer in layers:
+                if not layer.get('visible', True):
+                    continue
+                if not layer.get('activeForExport', True):
+                    continue
+                if layer['type'] != 'raster':
+                    continue
+
+                for cell_key, cell_stitches in layer.get('cells', {}).items():
+                    x, y = cell_key.split(',')
+                    x, y = int(x), int(y)
+
+                    if x < x_start or x >= x_end or y < y_start or y >= y_end:
+                        continue
+
+                    rel_x = (x - x_start) * cell_size
+                    rel_y = (y - y_start) * cell_size
+
+                    stitch_list = cell_stitches if isinstance(cell_stitches, list) else [cell_stitches]
+                    for cell_data in stitch_list:
+                        palette_index = cell_data.get('paletteIndex', 0)
+                        if palette_index >= len(palette):
+                            continue
+
+                        rgb = PatternRenderer._resolve_color(palette[palette_index])
+
+                        symbol = palette[palette_index].get('symbol', '?')
+                        symbol_color = PatternRenderer._get_contrasting_color(rgb) if show_color else (0, 0, 0)
+
+                        stitch_type = cell_data.get('stitchType', 'full')
+                        cx, cy, scale = SYMBOL_PLACEMENTS.get(stitch_type, (0.5, 0.5, 0.8))
+                        font_size = max(6, int(cell_size * 0.6 * scale))
+
+                        if font_size not in font_cache:
+                            font_cache[font_size] = PatternRenderer._get_symbol_font(font_size)
+                        font = font_cache[font_size]
+
+                        PatternRenderer._draw_symbol_pil(
+                            draw, font,
+                            rel_x, rel_y, cell_size, symbol, symbol_color,
+                            cx, cy
+                        )
+
+            image[:] = np.array(pil_img)
+
+        # Pass 5: Lines (linear-mode stitch paths)
         for layer in layers:
             if not layer.get('visible', True):
                 continue
@@ -742,49 +1048,37 @@ class PatternRenderer:
             if layer['type'] != 'raster':
                 continue
 
-            cells = layer.get('cells', {})
+            if show_line:
+                paths = layer.get('paths', [])
 
-            for cell_key, cell_data in cells.items():
-                cell_index = int(cell_key)
-                y = cell_index // width
-                x = cell_index % width
+                for path in paths:
+                    palette_index = path.get('paletteIndex', 0)
+                    if palette_index >= len(palette):
+                        continue
 
-                # Check if cell is in this region
-                if x < x_start or x >= x_end:
-                    continue
-                if y < y_start or y >= y_end:
-                    continue
+                    start_x = path.get('startX', 0)
+                    start_y = path.get('startY', 0)
+                    end_x = path.get('endX', 0)
+                    end_y = path.get('endY', 0)
 
-                palette_index = cell_data.get('paletteIndex', 0)
-                stitch_type = cell_data.get('stitchType', 'full')
+                    # Check if at least one endpoint is within the page region.
+                    # Corner coordinates are inclusive (a corner can sit on the boundary).
+                    if not ((x_start <= start_x <= x_end and y_start <= start_y <= y_end) or
+                            (x_start <= end_x <= x_end and y_start <= end_y <= y_end)):
+                        continue
 
-                if palette_index >= len(palette):
-                    continue
+                    path_rgb = PatternRenderer._resolve_color(palette[palette_index])
 
-                # Get symbol for this (color, stitch_type) combination
-                symbol = symbol_map.get((palette_index, stitch_type), '?')
+                    # Calculate pixel coordinates relative to region origin
+                    x1 = int((start_x - x_start) * cell_size)
+                    y1 = int((start_y - y_start) * cell_size)
+                    x2 = int((end_x - x_start) * cell_size)
+                    y2 = int((end_y - y_start) * cell_size)
 
-                # Calculate position relative to region
-                rel_x = (x - x_start) * cell_size
-                rel_y = (y - y_start) * cell_size
+                    cv2.line(image, (x1, y1), (x2, y2), path_rgb, line_thickness,
+                             cv2.LINE_AA)
 
-                # Determine symbol color based on background
-                if colored_background:
-                    color = palette[palette_index]
-                    if 'rgbHex' in color:
-                        hex_color = color['rgbHex'].lstrip('#')
-                        bg_rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-                    else:
-                        bg_rgb = (200, 200, 200)
-                    symbol_color = PatternRenderer._get_contrasting_color(bg_rgb)
-                else:
-                    symbol_color = (0, 0, 0)  # Black on white
-
-                PatternRenderer._draw_symbol_colored(
-                    image, rel_x, rel_y, cell_size, symbol, symbol_color
-                )
-
-        # Add grid numbers
+        # Pass 6: Grid numbers (always)
         PatternRenderer._add_region_numbers(
             image, region_width, region_height, cell_size,
             x_start, y_start
@@ -894,6 +1188,45 @@ class PatternRenderer:
         cell_size = min(cell_size, 20)  # Cap at 20px per cell
 
         return PatternRenderer.render_colored_pattern(state, width, height, cell_size)
+
+    @staticmethod
+    def render_thumbnail(state: Dict, width: int, height: int,
+                         canvas_width: int = 450, canvas_height: int = 250) -> np.ndarray:
+        """
+        Render pattern with stitches and grid lines, fitted and centered on a
+        fixed-size canvas.
+
+        Args:
+            state: Project state with layers, palette, and optional clothColor
+            width: Grid width in stitches
+            height: Grid height in stitches
+            canvas_width: Output image width in pixels
+            canvas_height: Output image height in pixels
+
+        Returns:
+            RGB numpy array of canvas_height x canvas_width
+        """
+        # Calculate cell size so the pattern fits inside the canvas
+        cell_size = max(1, min(canvas_width // width, canvas_height // height))
+
+        # Render the pattern at that cell size
+        pattern = PatternRenderer.render_colored_pattern(
+            state, width, height, cell_size
+        )
+        PatternRenderer._draw_grid(pattern, width, height, cell_size)
+
+        # Build canvas filled with cloth color
+        bg_rgb = PatternRenderer._hex_to_rgb_tuple(
+            state.get('clothColor', '#FFFFFF'))
+        canvas = np.full((canvas_height, canvas_width, 3), bg_rgb, dtype=np.uint8)
+
+        # Center the pattern on the canvas
+        pat_h, pat_w = pattern.shape[:2]
+        y_offset = (canvas_height - pat_h) // 2
+        x_offset = (canvas_width - pat_w) // 2
+        canvas[y_offset:y_offset + pat_h, x_offset:x_offset + pat_w] = pattern
+
+        return canvas
 
     @staticmethod
     def image_to_base64(image: np.ndarray) -> str:

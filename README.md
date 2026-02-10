@@ -72,3 +72,7 @@ All detailed documentation is in the `/claude/` directory:
 - Project management
 - Canvas editor
 - Pattern export
+
+```
+docker build -t ourstitch:latest .
+```

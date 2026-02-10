@@ -1,9 +1,15 @@
 import os
 from datetime import timedelta
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class Config:
     """Base configuration"""
+    # Logging
+    LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+
     # Secret key for session management
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 
@@ -36,7 +42,16 @@ class Config:
 
     # File upload configuration
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
+
+    # Palette color limit per project
+    MAX_PALETTE_COLORS = 128
     UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads')
+
+    # OAuth configuration
+    GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
+    GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
+    FACEBOOK_CLIENT_ID = os.getenv('FACEBOOK_CLIENT_ID')
+    FACEBOOK_CLIENT_SECRET = os.getenv('FACEBOOK_CLIENT_SECRET')
 
     # Mail configuration
     MAIL_SERVER = os.getenv('MAIL_SERVER', 'localhost')
@@ -50,6 +65,7 @@ class Config:
 
 class DevelopmentConfig(Config):
     """Development configuration"""
+    LOG_LEVEL = os.getenv('LOG_LEVEL', 'DEBUG')
     DEBUG = True
     SQLALCHEMY_ECHO = True  # Log all SQL statements
     SESSION_COOKIE_SECURE = False  # Allow HTTP for local development
@@ -60,6 +76,7 @@ class DevelopmentConfig(Config):
 
 class ProductionConfig(Config):
     """Production configuration"""
+    LOG_LEVEL = os.getenv('LOG_LEVEL', 'WARNING')
     DEBUG = False
     SQLALCHEMY_ECHO = False
     SESSION_COOKIE_SECURE = True  # Require HTTPS in production

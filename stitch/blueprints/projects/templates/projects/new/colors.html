@@ -56,7 +56,7 @@
             <!-- Selected colors section -->
             <div class="selected-colors-section">
                 <div class="selected-colors-header">
-                    <span class="selected-colors-title">Selected Colors (<span id="selected-count">0</span>)</span>
+                    <span class="selected-colors-title">Selected Colors (<span id="selected-count">0</span> / {{ max_palette_colors }})</span>
                     <button type="button" class="btn btn-sm btn-outline-secondary" id="clear-all-btn" style="display: none;">
                         Clear All
                     </button>
@@ -80,11 +80,11 @@
 
                     <div class="color-grid-compact" id="available-colors-grid">
                         {% for color in palette %}
-                        <div class="color-grid-cell {% if color.default %}default-color{% endif %}"
+                        <div class="color-grid-cell {% if color.is_default %}default-color{% endif %}"
                              data-color-code="{{ color.code }}"
                              data-color-name="{{ color.name }}"
                              data-color-hex="{{ color.hex }}"
-                             data-color-default="{{ color.default|lower }}"
+                             data-color-default="{{ color.is_default|lower }}"
                              title="{{ color.code }} - {{ color.name }}"
                              style="background-color: {{ color.hex }};">
                             <span class="color-grid-code">{{ color.code }}</span>
@@ -102,6 +102,6 @@
 <script src="{{ url_for('static', filename='js/wizard.js') }}"></script>
 <script src="{{ url_for('projects.static', filename='projects/projects.js') }}"></script>
 <script>
-    initColorSelection();
+    initColorSelection({{ max_palette_colors }});
 </script>
 {% endblock %}

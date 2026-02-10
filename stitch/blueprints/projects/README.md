@@ -49,7 +49,6 @@ Simple project creation form.
 - `name` (form): Project name (required)
 - `width` (form): Canvas width 1-1000 (required)
 - `height` (form): Canvas height 1-1000 (required)
-- `cloth_color` (form): Hex color (default: #ffffff)
 
 **Outputs:** HTML form (GET) or redirect to list (POST success)
 
@@ -63,11 +62,13 @@ Edit project metadata.
 
 **Inputs:**
 - `project_id` (path): Project ID
-- Form fields same as create
+- Form fields same as create, plus:
+- `difficulty` (form): Optional difficulty level (1=Beginner, 2=Intermediate, 3=Advanced)
+- `tags` (form): Optional list of tag names
 
 **Outputs:** HTML form (GET) or redirect to list (POST success)
 
-**Side effects:** Updates project in database (POST)
+**Side effects:** Updates project and tags in database (POST)
 
 **Auth/session:** Requires login, reads `session.user_id`
 
@@ -97,6 +98,8 @@ Step 1: Configure project basics.
 - `description` (form): Optional description
 - `width` (form): Canvas width 10-1000 (required)
 - `height` (form): Canvas height 10-1000 (required)
+- `difficulty` (form): Optional difficulty level (1=Beginner, 2=Intermediate, 3=Advanced)
+- `tags` (form): Optional list of tag names
 
 **Outputs:** HTML form (GET) or redirect to vendor step (POST)
 
@@ -154,6 +157,7 @@ Located in `stitch/blueprints/projects/static/projects/`:
 **JavaScript functions provided:**
 - `initColorPickerSync()` - Sync color picker with text input (form.html)
 - `initSizePreview()` - Canvas size preview (setup.html)
+- `initTagInput()` - Tag input with autocomplete and chips (setup.html, form.html)
 - `initColorSelection()` - Color selection functionality (colors.html)
 
 Templates also use global wizard styles from `stitch/static/css/wizard.css`.

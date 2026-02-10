@@ -17,10 +17,8 @@ They MUST NOT contain business logic or database access.
 | `main` | `/` (root) | Home page and uploaded resource serving |
 | `api` | `/api` | JSON API endpoints for frontend data access |
 | `auth` | `/auth` | User authentication (email-only MVP) |
-| `images` | `/images` | Image upload and gallery management |
-| `projects` | `/projects` | Project CRUD and listing |
-| `editor` | `/editor` | Cross-stitch pattern editor |
-| `pattern` | `/pattern` | Pattern preparation wizard |
+| `projects` | `/projects` | Project CRUD, listing, and editor |
+| `print` | `/print` | Pattern viewing and PDF export |
 
 ---
 

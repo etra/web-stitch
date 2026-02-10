@@ -7,25 +7,6 @@
  */
 
 /* =============================================================================
-   Project Form - Color Picker Sync
-   ============================================================================= */
-
-/**
- * Initialize color picker synchronization between color input and text display.
- * Call this on pages with the project form (create/edit).
- */
-function initColorPickerSync() {
-    const colorInput = document.getElementById('cloth_color');
-    const colorText = document.getElementById('cloth_color_text');
-
-    if (colorInput && colorText) {
-        colorInput.addEventListener('input', function(e) {
-            colorText.value = e.target.value;
-        });
-    }
-}
-
-/* =============================================================================
    Wizard Setup - Size Preview
    ============================================================================= */
 
@@ -67,6 +48,161 @@ function initSizePreview() {
 }
 
 /* =============================================================================
+   Tag Input - Autocomplete with Chips
+   ============================================================================= */
+
+/**
+ * Initialize the tag input with autocomplete and chip display.
+ * @param {string} inputId - ID of the text input element
+ * @param {string} hiddenContainerId - ID of the container for hidden form inputs
+ * @param {string} chipsContainerId - ID of the container for tag badge chips
+ * @param {string} suggestionsId - ID of the autocomplete suggestions dropdown
+ * @param {string[]} [initialTags=[]] - Pre-populated tag names
+ */
+function initTagInput(inputId, hiddenContainerId, chipsContainerId, suggestionsId, initialTags) {
+    const input = document.getElementById(inputId);
+    const hiddenContainer = document.getElementById(hiddenContainerId);
+    const chipsContainer = document.getElementById(chipsContainerId);
+    const suggestionsContainer = document.getElementById(suggestionsId);
+
+    if (!input || !hiddenContainer || !chipsContainer) {
+        return;
+    }
+
+    const tags = new Set();
+    let debounceTimer = null;
+
+    function normalizeTag(name) {
+        return name.trim().toLowerCase().replace(/[^a-z0-9\s\-]/g, '').replace(/\s+/g, ' ').substring(0, 50);
+    }
+
+    function renderChips() {
+        chipsContainer.innerHTML = '';
+        hiddenContainer.innerHTML = '';
+
+        tags.forEach(function(tag) {
+            // Badge chip
+            var chip = document.createElement('span');
+            chip.className = 'tag-chip badge bg-secondary me-1 mb-1';
+            chip.innerHTML = tag + ' <i class="bi bi-x tag-chip-remove"></i>';
+            chip.querySelector('.tag-chip-remove').addEventListener('click', function() {
+                tags.delete(tag);
+                renderChips();
+            });
+            chipsContainer.appendChild(chip);
+
+            // Hidden input for form submission
+            var hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = 'tags';
+            hidden.value = tag;
+            hiddenContainer.appendChild(hidden);
+        });
+    }
+
+    function addTag(name) {
+        var normalized = normalizeTag(name);
+        if (normalized && !tags.has(normalized)) {
+            tags.add(normalized);
+            renderChips();
+        }
+        input.value = '';
+        hideSuggestions();
+    }
+
+    function hideSuggestions() {
+        if (suggestionsContainer) {
+            suggestionsContainer.innerHTML = '';
+            suggestionsContainer.style.display = 'none';
+        }
+    }
+
+    function showSuggestions(tagList) {
+        if (!suggestionsContainer) return;
+        suggestionsContainer.innerHTML = '';
+
+        var filtered = tagList.filter(function(t) { return !tags.has(t.name); });
+        if (filtered.length === 0) {
+            hideSuggestions();
+            return;
+        }
+
+        filtered.forEach(function(tag) {
+            var item = document.createElement('div');
+            item.className = 'tag-suggestion-item';
+            item.textContent = tag.name;
+            item.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                addTag(tag.name);
+            });
+            suggestionsContainer.appendChild(item);
+        });
+
+        suggestionsContainer.style.display = 'block';
+    }
+
+    function fetchSuggestions(query) {
+        var url = '/api/tags';
+        if (query) {
+            url += '?q=' + encodeURIComponent(query);
+        }
+
+        fetch(url)
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.tags) {
+                    showSuggestions(data.tags);
+                }
+            })
+            .catch(function() {
+                hideSuggestions();
+            });
+    }
+
+    // Handle keyboard events
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            var value = input.value.trim();
+            if (value) {
+                addTag(value);
+            }
+        }
+    });
+
+    // Debounced autocomplete on input
+    input.addEventListener('input', function() {
+        var value = input.value.trim();
+        clearTimeout(debounceTimer);
+
+        if (value.length === 0) {
+            hideSuggestions();
+            return;
+        }
+
+        debounceTimer = setTimeout(function() {
+            fetchSuggestions(value);
+        }, 200);
+    });
+
+    // Hide suggestions on blur
+    input.addEventListener('blur', function() {
+        setTimeout(hideSuggestions, 150);
+    });
+
+    // Pre-populate initial tags
+    if (initialTags && initialTags.length > 0) {
+        initialTags.forEach(function(tag) {
+            var normalized = normalizeTag(tag);
+            if (normalized) {
+                tags.add(normalized);
+            }
+        });
+        renderChips();
+    }
+}
+
+/* =============================================================================
    Wizard Colors - Color Selection
    ============================================================================= */
 
@@ -74,7 +210,7 @@ function initSizePreview() {
  * Initialize the color selection functionality on the colors wizard step.
  * Handles adding/removing colors, search filtering, and form submission.
  */
-function initColorSelection() {
+function initColorSelection(maxColors) {
     const selectedGrid = document.getElementById('selected-colors-grid');
     const selectedInputs = document.getElementById('selected-inputs');
     const selectedCount = document.getElementById('selected-count');
@@ -87,6 +223,8 @@ function initColorSelection() {
         return;
     }
 
+    // Default to 32 if not provided
+    const maxPaletteColors = maxColors || 32;
     const selectedColors = new Map(); // code -> {code, name, hex}
 
     function updateUI() {
@@ -133,18 +271,28 @@ function initColorSelection() {
             });
         }
 
-        // Update available grid (mark selected as dimmed)
+        const atLimit = selectedColors.size >= maxPaletteColors;
+
+        // Update available grid (mark selected as dimmed, disable when at limit)
         availableGrid.querySelectorAll('.color-grid-cell').forEach(cell => {
             const code = cell.dataset.colorCode;
             if (selectedColors.has(code)) {
                 cell.classList.add('selected');
+                cell.classList.remove('at-limit');
+            } else if (atLimit) {
+                cell.classList.remove('selected');
+                cell.classList.add('at-limit');
             } else {
                 cell.classList.remove('selected');
+                cell.classList.remove('at-limit');
             }
         });
     }
 
     function addColor(code, name, hex) {
+        if (selectedColors.size >= maxPaletteColors) {
+            return; // Palette limit reached
+        }
         if (!selectedColors.has(code)) {
             selectedColors.set(code, { code, name, hex });
             updateUI();
@@ -159,7 +307,7 @@ function initColorSelection() {
     // Handle click on available colors
     availableGrid.addEventListener('click', function(e) {
         const cell = e.target.closest('.color-grid-cell');
-        if (cell && !cell.classList.contains('selected')) {
+        if (cell && !cell.classList.contains('selected') && !cell.classList.contains('at-limit')) {
             const code = cell.dataset.colorCode;
             const name = cell.dataset.colorName;
             const hex = cell.dataset.colorHex;

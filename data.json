@@ -1,0 +1,289 @@
+{
+  "activeLayerId": "7e70dbb0-c749-4e63-9369-4cdca281420d",
+  "layers": [
+    {
+      "activeForExport": true,
+      "cells": {
+        "12": {
+          "paletteIndex": 3,
+          "stitchType": "full"
+        },
+        "13": {
+          "paletteIndex": 3,
+          "stitchType": "full"
+        },
+        "16": {
+          "paletteIndex": 3,
+          "stitchType": "full"
+        },
+        "17": {
+          "paletteIndex": 3,
+          "stitchType": "full"
+        },
+        "21": {
+          "paletteIndex": 3,
+          "stitchType": "full"
+        },
+        "22": {
+          "paletteIndex": 3,
+          "stitchType": "full"
+        },
+        "23": {
+          "paletteIndex": 3,
+          "stitchType": "full"
+        },
+        "24": {
+          "paletteIndex": 3,
+          "stitchType": "full"
+        },
+        "25": {
+          "paletteIndex": 3,
+          "stitchType": "full"
+        },
+        "26": {
+          "paletteIndex": 3,
+          "stitchType": "full"
+        },
+        "27": {
+          "paletteIndex": 3,
+          "stitchType": "full"
+        },
+        "28": {
+          "paletteIndex": 3,
+          "stitchType": "full"
+        },
+        "31": {
+          "paletteIndex": 3,
+          "stitchType": "full"
+        },
+        "32": {
+          "paletteIndex": 3,
+          "stitchType": "full"
+        },
+        "33": {
+          "paletteIndex": 3,
+          "stitchType": "full"
+        },
+        "34": {
+          "paletteIndex": 3,
+          "stitchType": "full"
+        },
+        "35": {
+          "paletteIndex": 5,
+          "stitchType": "full"
+        },
+        "36": {
+          "paletteIndex": 5,
+          "stitchType": "full"
+        },
+        "37": {
+          "paletteIndex": 5,
+          "stitchType": "full"
+        },
+        "38": {
+          "paletteIndex": 4,
+          "stitchType": "full"
+        },
+        "41": {
+          "paletteIndex": 3,
+          "stitchType": "full"
+        },
+        "42": {
+          "paletteIndex": 3,
+          "stitchType": "full"
+        },
+        "43": {
+          "paletteIndex": 3,
+          "stitchType": "full"
+        },
+        "44": {
+          "paletteIndex": 5,
+          "stitchType": "full"
+        },
+        "45": {
+          "paletteIndex": 5,
+          "stitchType": "full"
+        },
+        "46": {
+          "paletteIndex": 4,
+          "stitchType": "full"
+        },
+        "47": {
+          "paletteIndex": 4,
+          "stitchType": "full"
+        },
+        "48": {
+          "paletteIndex": 6,
+          "stitchType": "full"
+        },
+        "52": {
+          "paletteIndex": 3,
+          "stitchType": "full"
+        },
+        "53": {
+          "paletteIndex": 5,
+          "stitchType": "full"
+        },
+        "54": {
+          "paletteIndex": 5,
+          "stitchType": "full"
+        },
+        "55": {
+          "paletteIndex": 4,
+          "stitchType": "full"
+        },
+        "56": {
+          "paletteIndex": 6,
+          "stitchType": "full"
+        },
+        "57": {
+          "paletteIndex": 6,
+          "stitchType": "full"
+        },
+        "63": {
+          "paletteIndex": 4,
+          "stitchType": "full"
+        },
+        "64": {
+          "paletteIndex": 4,
+          "stitchType": "full"
+        },
+        "65": {
+          "paletteIndex": 6,
+          "stitchType": "full"
+        },
+        "66": {
+          "paletteIndex": 6,
+          "stitchType": "full"
+        },
+        "74": {
+          "paletteIndex": 6,
+          "stitchType": "full"
+        },
+        "75": {
+          "paletteIndex": 6,
+          "stitchType": "full"
+        },
+        "84": {
+          "paletteIndex": 6,
+          "stitchType": "quarter-tr"
+        },
+        "85": {
+          "paletteIndex": 6,
+          "stitchType": "quarter-tl"
+        }
+      },
+      "editable": true,
+      "id": "7e70dbb0-c749-4e63-9369-4cdca281420d",
+      "name": "Main stitches",
+      "type": "raster",
+      "visible": true
+    }
+  ],
+  "palette": [
+    {
+      "code": "Ecru",
+      "count": 0,
+      "id": "c0",
+      "name": "Ecru/off-white",
+      "rgb": [
+        255,
+        247,
+        231
+      ],
+      "rgbHex": "#fff7e7",
+      "sortIndex": 0,
+      "symbol": "A",
+      "vendor": "DMC"
+    },
+    {
+      "code": "Blanc",
+      "count": 0,
+      "id": "c1",
+      "name": "White",
+      "rgb": [
+        238,
+        238,
+        238
+      ],
+      "rgbHex": "#eeeeee",
+      "sortIndex": 1,
+      "symbol": "B",
+      "vendor": "DMC"
+    },
+    {
+      "code": "310",
+      "count": 0,
+      "id": "c2",
+      "name": "Black",
+      "rgb": [
+        0,
+        0,
+        0
+      ],
+      "rgbHex": "#000000",
+      "sortIndex": 2,
+      "symbol": "C",
+      "vendor": "DMC"
+    },
+    {
+      "code": "606",
+      "count": 0,
+      "id": "c3",
+      "name": "Orange-red - BRIGHT",
+      "rgb": [
+        247,
+        15,
+        0
+      ],
+      "rgbHex": "#f70f00",
+      "sortIndex": 3,
+      "symbol": "D",
+      "vendor": "DMC"
+    },
+    {
+      "code": "699",
+      "count": 0,
+      "id": "c4",
+      "name": "Green",
+      "rgb": [
+        7,
+        91,
+        38
+      ],
+      "rgbHex": "#075b26",
+      "sortIndex": 4,
+      "symbol": "E",
+      "vendor": "DMC"
+    },
+    {
+      "code": "744",
+      "count": 0,
+      "id": "c5",
+      "name": "Yellow - PALE",
+      "rgb": [
+        254,
+        232,
+        141
+      ],
+      "rgbHex": "#fee88d",
+      "sortIndex": 5,
+      "symbol": "F",
+      "vendor": "DMC"
+    },
+    {
+      "id": "c1769376587390",
+      "vendor": "DMC",
+      "code": "3848",
+      "name": "Teal Green - MED",
+      "rgbHex": "#207e72",
+      "symbol": "G",
+      "sortIndex": 6
+    }
+  ],
+  "properties": {
+    "defaultStitchType": "full",
+    "majorGridInterval": 10,
+    "showGridNumbers": false
+  }
+}
