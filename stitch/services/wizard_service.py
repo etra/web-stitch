@@ -131,7 +131,7 @@ class WizardService:
                 'name': color.get('name'),
                 'rgbHex': color.get('hex'),
                 'rgb': ColorMatcher.hex_to_rgb(color.get('hex')),
-                'symbol': chr(65 + idx) if idx < 26 else chr(97 + (idx - 26)),  # A-Z, then a-z
+                'symbol': ProjectService._generate_symbol(idx),
                 'sortIndex': idx,
                 'count': 0
             })

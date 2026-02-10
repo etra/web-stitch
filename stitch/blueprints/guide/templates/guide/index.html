@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}User Guide — OurStitch{% endblock %}
+
+{% block meta_description %}Learn how to use OurStitch: create cross-stitch projects, use the editor, work with layers and images, and export patterns to PDF.{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('guide.static', filename='guide/guide.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h1 class="fw-bold">User Guide</h1>
+            <p class="lead text-body-secondary">Everything you need to know to create cross-stitch patterns with OurStitch.</p>
+        </div>
+
+        <div class="row row-cols-1 row-cols-md-2 g-4 justify-content-center" style="max-width: 56rem; margin: 0 auto;">
+            <!-- Create Project -->
+            <div class="col">
+                <a href="{{ url_for('guide.create_project') }}" class="card h-100 text-decoration-none guide-topic-card">
+                    <div class="card-body text-center p-4">
+                        <i class="bi bi-plus-circle fs-1 text-primary mb-3 d-block"></i>
+                        <h2 class="h5 card-title">How to Create a Project</h2>
+                        <p class="card-text text-body-secondary">Set up a new cross-stitch project: name it, choose canvas size, pick a thread vendor, and select your colors.</p>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Editor -->
+            <div class="col">
+                <a href="{{ url_for('guide.editor') }}" class="card h-100 text-decoration-none guide-topic-card">
+                    <div class="card-body text-center p-4">
+                        <i class="bi bi-pencil-square fs-1 text-primary mb-3 d-block"></i>
+                        <h2 class="h5 card-title">Introduction to the Editor</h2>
+                        <p class="card-text text-body-secondary">Explore the editor layout: drawing modes, display modes, stitch types, color palette, and layers panel.</p>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Layers -->
+            <div class="col">
+                <a href="{{ url_for('guide.layers') }}" class="card h-100 text-decoration-none guide-topic-card">
+                    <div class="card-body text-center p-4">
+                        <i class="bi bi-layers fs-1 text-primary mb-3 d-block"></i>
+                        <h2 class="h5 card-title">Layers & Image Conversion</h2>
+                        <p class="card-text text-body-secondary">Add layers, import reference images, and convert them into editable cross-stitch patterns.</p>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Print -->
+            <div class="col">
+                <a href="{{ url_for('guide.print_pattern') }}" class="card h-100 text-decoration-none guide-topic-card">
+                    <div class="card-body text-center p-4">
+                        <i class="bi bi-printer fs-1 text-primary mb-3 d-block"></i>
+                        <h2 class="h5 card-title">Printing & PDF Export</h2>
+                        <p class="card-text text-body-secondary">Preview your pattern, view the color legend, navigate chart pages, and export to PDF.</p>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

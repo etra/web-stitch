@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}How to Create a Project — OurStitch User Guide{% endblock %}
+
+{% block meta_description %}Step-by-step guide to creating a new cross-stitch project in OurStitch: naming, canvas size, thread vendor, and color selection.{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('guide.static', filename='guide/guide.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container" style="max-width: 48rem;">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="guide-breadcrumb mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('guide.index') }}">User Guide</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Create a Project</li>
+            </ol>
+        </nav>
+
+        <h1 class="fw-bold mb-2">How to Create a Project</h1>
+        <p class="lead text-body-secondary mb-5">Follow these steps to set up a new cross-stitch project.</p>
+
+        <!-- Step 1 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">1</span>
+                <h2 class="h5 mb-0">Open My Projects and click "New Project"</h2>
+            </div>
+            <p class="text-body-secondary">Navigate to the <strong>My Projects</strong> page from the navbar. Click the <strong>New Project</strong> button to start the creation wizard. You can also try the <strong>Sample Project</strong> button to instantly create a pre-made project with colors and stitches already in place — great for exploring the editor without any setup.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/create-project/1.png') }}" alt="My Projects page with New Project button" class="img-fluid">
+        </div>
+
+        <!-- Step 2 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">2</span>
+                <h2 class="h5 mb-0">Set up your project</h2>
+            </div>
+            <p class="text-body-secondary">Enter a <strong>name</strong> and optional <strong>description</strong> for your project. Choose the <strong>canvas size</strong> (width and height in stitches).</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/create-project/2.png') }}" alt="Project setup form: name, description, canvas size" class="img-fluid">
+        </div>
+
+        <!-- Step 3 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">3</span>
+                <h2 class="h5 mb-0">Select a thread vendor</h2>
+            </div>
+            <p class="text-body-secondary">Choose the thread brand you'll be working with: <strong>DMC</strong>, <strong>Hama</strong>, <strong>Artkal</strong>, or <strong>Nabbi</strong>. This determines which color catalog is available for your palette.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/create-project/3.png') }}" alt="Thread vendor selection" class="img-fluid">
+        </div>
+
+        <!-- Step 4 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">4</span>
+                <h2 class="h5 mb-0">Pick your colors</h2>
+            </div>
+            <p class="text-body-secondary">Browse the color catalog and add colors to your palette. You can search by name or code. Selected colors will appear in your project's palette.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/create-project/4.png') }}" alt="Color picker with catalog colors" class="img-fluid">
+        </div>
+
+        <!-- Step 5 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">5</span>
+                <h2 class="h5 mb-0">Start editing</h2>
+            </div>
+            <p class="text-body-secondary">Your project is created and the <strong>editor</strong> opens automatically. You're ready to place stitches on the canvas!</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/create-project/5.png') }}" alt="Editor opens with new project" class="img-fluid">
+        </div>
+
+        <!-- Navigation -->
+        <div class="d-flex justify-content-between mt-5 pt-4 border-top">
+            <a href="{{ url_for('guide.index') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i> Back to Guide</a>
+            <a href="{{ url_for('guide.editor') }}" class="btn btn-primary">Next: The Editor <i class="bi bi-arrow-right ms-1"></i></a>
+        </div>
+    </div>
+</section>
+{% endblock %}

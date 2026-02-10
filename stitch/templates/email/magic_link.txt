@@ -1,8 +1,8 @@
-Sign in to Web Stitch
+Sign in to OurStitch
 
 Hello{{ ' ' + user.email if user else '' }},
 
-Click the link below to sign in to your Web Stitch account:
+Click the link below to sign in to your OurStitch account:
 
 {{ magic_link }}
 
@@ -10,4 +10,4 @@ This link will expire in 15 minutes.
 
 If you didn't request this email, you can safely ignore it.
 
-The Web Stitch Team
+The OurStitch Team

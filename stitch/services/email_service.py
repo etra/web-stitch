@@ -185,7 +185,7 @@ class EmailService:
             True if email was sent/queued successfully
         """
         return EmailService.send_template(
-            subject='Sign in to Web Stitch',
+            subject='Sign in to OurStitch',
             recipients=[user.email],
             template='magic_link',
             user=user,

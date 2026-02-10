@@ -48,10 +48,12 @@ def create_app(config_name=None):
     from stitch.blueprints.auth import bp as auth_bp
     from stitch.blueprints.projects import bp as projects_bp
     from stitch.blueprints.print import bp as print_bp
+    from stitch.blueprints.guide import bp as guide_bp
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(projects_bp)
     app.register_blueprint(print_bp)
+    app.register_blueprint(guide_bp)
 
     return app

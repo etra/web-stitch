@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Introduction to the Editor — OurStitch User Guide{% endblock %}
+
+{% block meta_description %}Learn the OurStitch editor layout: drawing modes, display modes, stitch types, color palette, actions, and layers panel.{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('guide.static', filename='guide/guide.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container" style="max-width: 48rem;">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="guide-breadcrumb mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('guide.index') }}">User Guide</a></li>
+                <li class="breadcrumb-item active" aria-current="page">The Editor</li>
+            </ol>
+        </nav>
+
+        <h1 class="fw-bold mb-2">Introduction to the Editor</h1>
+        <p class="lead text-body-secondary mb-5">The editor is a 3-column layout: tools on the left, canvas in the center, and panels on the right.</p>
+
+        <!-- 1. Editor Overview -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">1</span>
+                <h2 class="h5 mb-0">Editor overview</h2>
+            </div>
+            <p class="text-body-secondary">The editor is split into three columns. The <strong>left toolbar</strong> has drawing modes, display modes, and stitch types. The <strong>center canvas</strong> is where you draw. The <strong>right panel</strong> shows the color palette and layers.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/editor/1-editor.png') }}" alt="Editor overview with 3-column layout" class="img-fluid">
+        </div>
+
+        <!-- 2. Drawing Mode -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">2</span>
+                <h2 class="h5 mb-0">Drawing Mode</h2>
+            </div>
+            <p class="text-body-secondary">Switch between <strong>Draw</strong> (place stitches), <strong>Pan</strong> (scroll the canvas), and <strong>Erase</strong> (remove stitches) modes using the toolbar buttons.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/editor/2-drawing-mode.png') }}" alt="Drawing mode buttons: Draw, Pan, Erase" class="img-fluid">
+        </div>
+
+        <!-- 3. Display Mode -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">3</span>
+                <h2 class="h5 mb-0">Display Mode</h2>
+            </div>
+            <p class="text-body-secondary">Choose how stitches appear on canvas: <strong>Chart</strong> (symbols on grid), <strong>Stitch</strong> (colored X shapes), or <strong>Line</strong> (backstitch lines).</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/editor/3-display-mode.png') }}" alt="Display mode buttons: Chart, Stitch, Line" class="img-fluid">
+        </div>
+
+        <!-- 4. Stitch Types -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">4</span>
+                <h2 class="h5 mb-0">Stitch Types</h2>
+            </div>
+            <p class="text-body-secondary">Select which stitch type to place: <strong>Full Cross</strong>, <strong>Three-Quarter</strong> (4 corner variants), or <strong>Line</strong> (backstitch). Each type occupies different parts of a cell.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/editor/4-stitches.png') }}" alt="Stitch type picker" class="img-fluid">
+        </div>
+
+        <!-- 5. Color Palette -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">5</span>
+                <h2 class="h5 mb-0">Color Palette</h2>
+            </div>
+            <p class="text-body-secondary">The right panel shows your project's color palette. Click a color to select it for drawing. Use the <strong>+</strong> button to add more colors from the vendor catalog.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/editor/5-colors.png') }}" alt="Color palette panel" class="img-fluid">
+        </div>
+
+        <!-- 6. Actions -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">6</span>
+                <h2 class="h5 mb-0">Actions</h2>
+            </div>
+            <p class="text-body-secondary">Use the action buttons to <strong>Undo</strong> changes, <strong>Save</strong> your project, or open <strong>Print</strong> preview. The project auto-saves every 5 minutes.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/editor/6-actions.png') }}" alt="Action buttons: Undo, Save, Print" class="img-fluid">
+        </div>
+
+        <!-- 7. Layers Panel -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">7</span>
+                <h2 class="h5 mb-0">Layers Panel</h2>
+            </div>
+            <p class="text-body-secondary">The layers panel lets you manage multiple layers. Toggle visibility, reorder layers, and add new ones. Each layer has its own set of stitches.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/editor/7-layers.png') }}" alt="Layers panel" class="img-fluid">
+        </div>
+
+        <!-- Navigation -->
+        <div class="d-flex justify-content-between mt-5 pt-4 border-top">
+            <a href="{{ url_for('guide.create_project') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i> Create a Project</a>
+            <a href="{{ url_for('guide.layers') }}" class="btn btn-primary">Next: Layers <i class="bi bi-arrow-right ms-1"></i></a>
+        </div>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Printing & PDF Export — OurStitch User Guide{% endblock %}
+
+{% block meta_description %}Learn how to preview, navigate, and export your cross-stitch pattern to PDF in OurStitch.{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('guide.static', filename='guide/guide.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container" style="max-width: 48rem;">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="guide-breadcrumb mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('guide.index') }}">User Guide</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Printing & PDF Export</li>
+            </ol>
+        </nav>
+
+        <h1 class="fw-bold mb-2">Printing & PDF Export</h1>
+        <p class="lead text-body-secondary mb-5">Preview your pattern across multiple tabs and export it as a printable PDF.</p>
+
+        <!-- Step 1 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">1</span>
+                <h2 class="h5 mb-0">Overview tab</h2>
+            </div>
+            <p class="text-body-secondary">The print preview opens to the <strong>Overview</strong> tab, showing a full pattern preview along with project info like dimensions and color count.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/print/1.png') }}" alt="Print preview — Overview tab" class="img-fluid">
+        </div>
+
+        <!-- Step 2 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">2</span>
+                <h2 class="h5 mb-0">Legend tab</h2>
+            </div>
+            <p class="text-body-secondary">The <strong>Legend</strong> tab displays a table of all colors used in the pattern, including each color's symbol, name, vendor code, and stitch count.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/print/2.png') }}" alt="Print preview — Legend tab with color table" class="img-fluid">
+        </div>
+
+        <!-- Step 3 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">3</span>
+                <h2 class="h5 mb-0">Pattern tab</h2>
+            </div>
+            <p class="text-body-secondary">The <strong>Pattern</strong> tab shows the chart grid split into printable pages. Each page displays a section of the pattern with symbols and grid lines.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/print/3.png') }}" alt="Print preview — Pattern tab with chart grid" class="img-fluid">
+        </div>
+
+        <!-- Step 4 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">4</span>
+                <h2 class="h5 mb-0">Navigating pattern pages</h2>
+            </div>
+            <p class="text-body-secondary">For large patterns, use the <strong>page navigation</strong> controls to browse between chart pages. Each page covers a portion of the grid.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/print/4.png') }}" alt="Pattern page navigation" class="img-fluid">
+        </div>
+
+        <!-- Step 5 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">5</span>
+                <h2 class="h5 mb-0">Export to PDF</h2>
+            </div>
+            <p class="text-body-secondary">Click the <strong>Export PDF</strong> button to generate a printable PDF. The dialog lets you choose which sections to include: overview, legend, and/or pattern pages.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/print/5.png') }}" alt="PDF Export Options dialog" class="img-fluid">
+        </div>
+
+        <!-- Navigation -->
+        <div class="d-flex justify-content-between mt-5 pt-4 border-top">
+            <a href="{{ url_for('guide.layers') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i> Layers</a>
+            <a href="{{ url_for('guide.index') }}" class="btn btn-outline-secondary">Back to Guide</a>
+        </div>
+    </div>
+</section>
+{% endblock %}

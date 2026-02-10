@@ -101,7 +101,7 @@ class ColorMatcher:
                     'rgbHex': q_color['rgbHex'],
                     'rgb': rgb,
                     'name': q_color.get('name', f'Color {idx + 1}'),
-                    'symbol': q_color.get('symbol', chr(65 + idx)),
+                    'symbol': q_color.get('symbol', '?'),
                     'count': q_color.get('count', 0)
                 },
                 'dmc': {

@@ -80,6 +80,23 @@ SYMBOL_PLACEMENTS = {
     st: _compute_symbol_placement(st) for st in STITCH_TYPES
 }
 
+# Font scale by category – ratio of cell_size that becomes font size.
+_SYMBOL_FONT_SCALE = {
+    'Full Cross': 0.75,           # 20px cell → 15px font
+    'Three-Quarter Stitch': 0.5,  # 20px cell → 10px font
+    'Half Stitch': 0.6,           # 20px cell → 12px font
+    'Quarter Stitch': 0.45,       # 20px cell →  9px font
+}
+_DEFAULT_FONT_SCALE = 0.75
+
+
+def _symbol_font_size(cell_size: int, stitch_type: str) -> int:
+    """Compute symbol font size based on stitch category and cell size."""
+    defn = STITCH_TYPES.get(stitch_type)
+    category = defn.get('category', '') if defn else ''
+    scale = _SYMBOL_FONT_SCALE.get(category, _DEFAULT_FONT_SCALE)
+    return max(6, int(cell_size * scale))
+
 
 def _snap_bbox(stitch_type: str):
     """Snap a bounding box to clean cell edges.
@@ -362,8 +379,8 @@ class PatternRenderer:
                     symbol = palette[palette_index].get('symbol', '?')
 
                     stitch_type = cell_data.get('stitchType', 'full')
-                    cx, cy, scale = SYMBOL_PLACEMENTS.get(stitch_type, (0.5, 0.5, 0.8))
-                    font_size = max(6, int(cell_size * 0.6 * scale))
+                    cx, cy, _scale = SYMBOL_PLACEMENTS.get(stitch_type, (0.5, 0.5, 0.8))
+                    font_size = _symbol_font_size(cell_size, stitch_type)
 
                     if font_size not in font_cache:
                         font_cache[font_size] = PatternRenderer._get_symbol_font(font_size)
@@ -450,14 +467,10 @@ class PatternRenderer:
 
         cx, cy are normalized 0..1 coordinates for the symbol center.
         """
-        bbox = font.getbbox(symbol)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
+        center_x = x + cx * size
+        center_y = y + cy * size
 
-        text_x = int(x + cx * size - text_width / 2) - bbox[0]
-        text_y = int(y + cy * size - text_height / 2) - bbox[1]
-
-        draw.text((text_x, text_y), symbol, fill=color, font=font)
+        draw.text((center_x, center_y), symbol, fill=color, font=font, anchor='mm')
 
     @staticmethod
     def _draw_grid(image: np.ndarray, width: int, height: int,
@@ -833,8 +846,8 @@ class PatternRenderer:
             )
 
         # Pass 3: Draw symbol using PIL
-        cx, cy, scale = SYMBOL_PLACEMENTS.get(stitch_type, (0.5, 0.5, 0.8))
-        font_size = max(6, int(size * 0.6 * scale))
+        cx, cy, _scale = SYMBOL_PLACEMENTS.get(stitch_type, (0.5, 0.5, 0.8))
+        font_size = _symbol_font_size(size, stitch_type)
         font = PatternRenderer._get_symbol_font(font_size)
         symbol_color = PatternRenderer._get_contrasting_color(rgb)
 
@@ -1024,8 +1037,8 @@ class PatternRenderer:
                         symbol_color = PatternRenderer._get_contrasting_color(rgb) if show_color else (0, 0, 0)
 
                         stitch_type = cell_data.get('stitchType', 'full')
-                        cx, cy, scale = SYMBOL_PLACEMENTS.get(stitch_type, (0.5, 0.5, 0.8))
-                        font_size = max(6, int(cell_size * 0.6 * scale))
+                        cx, cy, _scale = SYMBOL_PLACEMENTS.get(stitch_type, (0.5, 0.5, 0.8))
+                        font_size = _symbol_font_size(cell_size, stitch_type)
 
                         if font_size not in font_cache:
                             font_cache[font_size] = PatternRenderer._get_symbol_font(font_size)

@@ -1,0 +1,32 @@
+.guide-step {
+    margin-bottom: 2.5rem;
+}
+
+.guide-step img {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.5rem;
+}
+
+.guide-step-number {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.875rem;
+    flex-shrink: 0;
+}
+
+.guide-topic-card {
+    transition: transform 0.15s ease-in-out;
+}
+
+.guide-topic-card:hover {
+    transform: translateY(-4px);
+}
+
+.guide-breadcrumb {
+    --bs-breadcrumb-divider: '>';
+}

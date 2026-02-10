@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Layers & Image Conversion — OurStitch User Guide{% endblock %}
+
+{% block meta_description %}Learn how to add layers, import reference images, and convert images into cross-stitch patterns in OurStitch.{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('guide.static', filename='guide/guide.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container" style="max-width: 48rem;">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="guide-breadcrumb mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('guide.index') }}">User Guide</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Layers & Image Conversion</li>
+            </ol>
+        </nav>
+
+        <h1 class="fw-bold mb-2">Working with Layers & Image Conversion</h1>
+        <p class="lead text-body-secondary mb-5">Add layers, import reference images, and convert them into editable stitch patterns.</p>
+
+        <!-- Step 1 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">1</span>
+                <h2 class="h5 mb-0">Add a new layer</h2>
+            </div>
+            <p class="text-body-secondary">In the <strong>Layers</strong> panel on the right, click the <strong>+</strong> button to add a new layer.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/layers/1.png') }}" alt="Layers panel with add button" class="img-fluid">
+        </div>
+
+        <!-- Step 2 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">2</span>
+                <h2 class="h5 mb-0">Choose layer type: Empty Layer</h2>
+            </div>
+            <p class="text-body-secondary">The Add Layer dialog appears. Choose <strong>Empty Layer</strong> to create a blank layer for drawing stitches from scratch.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/layers/2.png') }}" alt="Add Layer dialog — Empty Layer option" class="img-fluid">
+        </div>
+
+        <!-- Step 3 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">3</span>
+                <h2 class="h5 mb-0">Choose layer type: From Image</h2>
+            </div>
+            <p class="text-body-secondary">Or choose <strong>From Image</strong> to upload a reference photo. This creates a <strong>reference layer</strong> that overlays the image on your grid.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/layers/3.png') }}" alt="Add Layer dialog — From Image option" class="img-fluid">
+        </div>
+
+        <!-- Step 4 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">4</span>
+                <h2 class="h5 mb-0">Reference image on the grid</h2>
+            </div>
+            <p class="text-body-secondary">The uploaded image appears as a semi-transparent overlay on the canvas. Use it as a guide while drawing stitches on other layers.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/layers/4.png') }}" alt="Reference image overlaid on grid" class="img-fluid">
+        </div>
+
+        <!-- Step 5 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">5</span>
+                <h2 class="h5 mb-0">Convert to stitches</h2>
+            </div>
+            <p class="text-body-secondary">Open the layer properties and click <strong>Convert to Stitches</strong>. This analyzes the reference image and generates a stitch pattern from it.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/layers/5.png') }}" alt="Layer properties — Convert to Stitches button" class="img-fluid">
+        </div>
+
+        <!-- Step 6 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">6</span>
+                <h2 class="h5 mb-0">Conversion settings</h2>
+            </div>
+            <p class="text-body-secondary">Configure the conversion: set the <strong>maximum number of colors</strong> and choose the <strong>color source</strong> (from your palette or the vendor catalog). Click Convert to proceed.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/layers/6.png') }}" alt="Convert dialog with max colors and color source options" class="img-fluid">
+        </div>
+
+        <!-- Step 7 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">7</span>
+                <h2 class="h5 mb-0">Result: Stitch view</h2>
+            </div>
+            <p class="text-body-secondary">After conversion, switch to <strong>Stitch</strong> display mode to see the colored cross-stitch pattern generated from your image.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/layers/7.png') }}" alt="Converted stitches in Stitch display mode" class="img-fluid">
+        </div>
+
+        <!-- Step 8 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">8</span>
+                <h2 class="h5 mb-0">Result: Chart view</h2>
+            </div>
+            <p class="text-body-secondary">Switch to <strong>Chart</strong> display mode to see the symbol grid. Each color has a unique symbol, making it easy to follow while stitching.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/layers/8.png') }}" alt="Converted stitches in Chart/Symbol display mode" class="img-fluid">
+        </div>
+
+        <!-- Navigation -->
+        <div class="d-flex justify-content-between mt-5 pt-4 border-top">
+            <a href="{{ url_for('guide.editor') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i> The Editor</a>
+            <a href="{{ url_for('guide.print_pattern') }}" class="btn btn-primary">Next: Printing <i class="bi bi-arrow-right ms-1"></i></a>
+        </div>
+    </div>
+</section>
+{% endblock %}

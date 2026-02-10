@@ -60,7 +60,10 @@ class Config:
     MAIL_USE_SSL = os.getenv('MAIL_USE_SSL', 'false').lower() == 'true'
     MAIL_USERNAME = os.getenv('MAIL_USERNAME')
     MAIL_PASSWORD = os.getenv('MAIL_PASSWORD')
-    MAIL_DEFAULT_SENDER = os.getenv('MAIL_DEFAULT_SENDER', 'noreply@webstitch.com')
+    MAIL_DEFAULT_SENDER = os.getenv('MAIL_DEFAULT_SENDER', 'no-reply@ourstitch.com')
+
+    # Magic link token expiration (seconds)
+    MAGIC_LINK_EXPIRATION = 900  # 15 minutes
 
 
 class DevelopmentConfig(Config):

@@ -79,6 +79,7 @@
             </a>
             <div class="d-flex align-items-center gap-3 me-auto">
                 <a class="nav-link" href="{{ url_for('main.patterns') }}">Community Patterns</a>
+                <a class="nav-link" href="{{ url_for('guide.index') }}">User Guide</a>
                 {% if session.user_id %}
                 <a class="nav-link" href="{{ url_for('projects.list') }}">My Projects</a>
                 {% endif %}

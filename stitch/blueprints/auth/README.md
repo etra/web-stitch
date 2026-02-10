@@ -1,6 +1,6 @@
 # Auth Blueprint
 
-Handles user authentication with email-only login and optional social login (Google, Facebook).
+Handles user authentication with magic link email verification and optional social login (Google, Facebook).
 
 ## URL Prefix
 
@@ -10,7 +10,8 @@ Handles user authentication with email-only login and optional social login (Goo
 
 | Method | Path | Handler | Description |
 |--------|------|---------|-------------|
-| GET, POST | `/auth/login` | `login` | Login page and email authentication handler |
+| GET, POST | `/auth/login` | `login` | Login page; POST sends magic link email |
+| GET | `/auth/verify/<token>` | `verify_magic_link` | Verifies magic link token and logs user in |
 | GET | `/auth/logout` | `logout` | Logs out the current user |
 | GET | `/auth/login/google` | `login_google` | Redirects to Google consent screen |
 | GET | `/auth/callback/google` | `callback_google` | Handles Google OAuth callback |
@@ -33,12 +34,28 @@ Displays the login form. Shows social login buttons when OAuth providers are con
 
 ### `POST /auth/login`
 
-Processes login form submission.
+Sends a magic link email for authentication.
 
 **Inputs:**
 - `email` (form): User's email address (required)
 
-**Outputs:** Redirect to projects list (success) or login form with error (failure)
+**Outputs:** Renders `auth/check_email.html` (success) or login form with error (failure)
+
+**Side effects:**
+- Creates user in database if not exists
+- Generates a signed token (15-min expiry) and sends magic link email
+- In debug mode, logs the magic link URL to the console
+
+**Auth/session:** No session changes (login completes via `/auth/verify/<token>`)
+
+### `GET /auth/verify/<token>`
+
+Verifies a magic link token and logs the user in.
+
+**Inputs:**
+- `token` (URL path): Signed URL-safe token containing user email
+
+**Outputs:** Redirect to projects list (valid token) or login page with error (invalid/expired)
 
 **Side effects:**
 - Creates user in database if not exists

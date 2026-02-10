@@ -188,15 +188,9 @@ class ImageProcessor:
 
     @staticmethod
     def _get_symbol(index: int) -> str:
-        """Get symbol for palette color (A-Z, then a-z, then 0-9)"""
-        if index < 26:
-            return chr(65 + index)  # A-Z
-        elif index < 52:
-            return chr(97 + index - 26)  # a-z
-        elif index < 62:
-            return chr(48 + index - 52)  # 0-9
-        else:
-            return '•'  # Fallback
+        """Get Unicode chart symbol for palette color."""
+        from stitch.services.project_service import ProjectService
+        return ProjectService._generate_symbol(index)
 
     @staticmethod
     def detect_edges(image: np.ndarray) -> np.ndarray:

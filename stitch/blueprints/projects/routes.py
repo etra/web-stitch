@@ -8,7 +8,6 @@ from flask import current_app, render_template, request, redirect, url_for, flas
 
 from stitch.blueprints.projects import bp
 from stitch.blueprints.auth.routes import login_required
-from stitch.utils.decorators import deprecated
 from stitch.models.project import ProjectStatus
 from stitch.services.project_service import ProjectService
 from stitch.services.sample_project_service import SampleProjectService
@@ -47,48 +46,6 @@ def list():
     color_counts = {p.id: ProjectService.get_palette_color_count(p.id) for p in projects}
     return render_template('projects/list.html', projects=projects, color_counts=color_counts)
 
-
-@bp.route('/create', methods=['GET', 'POST'])
-@login_required
-@deprecated("Replaced by wizard flow: new_setup -> new_vendor -> new_colors")
-def create():
-    """Create new project."""
-    user_id = session.get('user_id')
-
-    if request.method == 'POST':
-        name = request.form.get('name', '').strip()
-        width = request.form.get('width', type=int)
-        height = request.form.get('height', type=int)
-
-        # Validation
-        if not name:
-            flash('Project name is required.', 'danger')
-            return render_template('projects/form.html')
-
-        if not width or width < 1 or width > 1000:
-            flash('Width must be between 1 and 1000.', 'danger')
-            return render_template('projects/form.html')
-
-        if not height or height < 1 or height > 1000:
-            flash('Height must be between 1 and 1000.', 'danger')
-            return render_template('projects/form.html')
-
-        try:
-            project = ProjectService.create_project(
-                user_id=user_id,
-                name=name,
-                width=width,
-                height=height,
-            )
-            flash(f'Project "{project.name}" created successfully!', 'success')
-            return redirect(url_for('projects.list'))
-
-        except Exception:
-            flash('An error occurred while creating the project.', 'danger')
-            return render_template('projects/form.html')
-
-    # GET request - show form
-    return render_template('projects/form.html')
 
 
 @bp.route('/<project_id>/edit', methods=['GET', 'POST'])
@@ -260,6 +217,7 @@ def create_sample():
     try:
         project = SampleProjectService.create_sample_project(user_id)
         flash(f'Sample project "{project.name}" created!', 'success')
+        return redirect(url_for('projects.editor', project_id=project.id))
     except ValueError as e:
         flash(f'Could not create sample project: {e}', 'danger')
     except Exception:
@@ -435,7 +393,7 @@ def new_colors():
             WizardService.clear_wizard()
 
             flash(f'Project "{project.name}" created successfully!', 'success')
-            return redirect(url_for('projects.list'))
+            return redirect(url_for('projects.editor', project_id=project.id))
 
         except Exception as e:
             flash(f'Error creating project: {str(e)}', 'danger')
