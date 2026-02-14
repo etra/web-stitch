@@ -91,12 +91,10 @@ def view(project_id):
         #         )
         #         color['stitchPreview'] = PatternRenderer.image_to_base64(preview)
 
-        # Pages 3+: Paginated symbol patterns (50x50 with 5 overlap)
+        # Pages 3+: Paginated symbol patterns (30x40 with 3-stitch overlap)
         page_definitions = PatternRenderer.calculate_pattern_pages(
             project.width,
             project.height,
-            page_size=50,
-            overlap=5
         )
 
         pattern_pages = []
@@ -159,7 +157,7 @@ def pattern_page_image(project_id, page_num):
 
         # Calculate page definitions
         page_definitions = PatternRenderer.calculate_pattern_pages(
-            project.width, project.height, page_size=50, overlap=5
+            project.width, project.height
         )
 
         # Find the requested page (1-indexed)

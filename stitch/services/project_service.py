@@ -89,7 +89,7 @@ class ProjectService:
             ],
             'activeLayerId': layer_id,
             'properties': {
-                'majorGridInterval': 10,
+                'majorGridInterval': current_app.config.get('MAJOR_GRID_INTERVAL', 5),
                 'showGridNumbers': False,
                 'defaultStitchType': 'full'
             }
@@ -213,7 +213,7 @@ class ProjectService:
             'activeLayerId': project.active_layer_id,
             'clothColor': project.cloth_color,
             'properties': {
-                'majorGridInterval': project.major_grid_interval or 10,
+                'majorGridInterval': current_app.config.get('MAJOR_GRID_INTERVAL', 5),
                 'showGridNumbers': project.show_grid_numbers or False,
                 'defaultStitchType': project.default_stitch_type or 'full'
             }
@@ -308,7 +308,6 @@ class ProjectService:
         # Update project-level properties
         properties = state_dict.get('properties', {})
         project.active_layer_id = state_dict.get('activeLayerId')
-        project.major_grid_interval = properties.get('majorGridInterval', 10)
         project.show_grid_numbers = properties.get('showGridNumbers', False)
         project.default_stitch_type = properties.get('defaultStitchType', 'full')
 
@@ -411,7 +410,6 @@ class ProjectService:
         # Update project-level properties
         project.active_layer_id = data.get('activeLayerId')
         props = data.get('properties', {})
-        project.major_grid_interval = props.get('majorGridInterval', 10)
         project.show_grid_numbers = props.get('showGridNumbers', False)
         project.default_stitch_type = props.get('defaultStitchType', 'full')
 
@@ -473,6 +471,123 @@ class ProjectService:
         db.session.commit()
 
         return project
+
+    @staticmethod
+    def clone_project(source_project: Project, user_id: str) -> Project:
+        """
+        Create a full copy of a project for the given user.
+
+        Copies all colors, layers, cells, and paths with fresh UUIDs.
+        Color references in cells and paths are remapped to the new UUIDs.
+
+        Args:
+            source_project: The project to clone
+            user_id: The user who will own the clone
+
+        Returns:
+            The newly created Project
+        """
+        # Create new project with same properties
+        clone = Project(
+            user_id=user_id,
+            name=f"{source_project.name} (copy)",
+            description=source_project.description,
+            width=source_project.width,
+            height=source_project.height,
+            cloth_color=source_project.cloth_color,
+            difficulty=source_project.difficulty,
+            show_grid_numbers=source_project.show_grid_numbers,
+            default_stitch_type=source_project.default_stitch_type,
+        )
+        db.session.add(clone)
+        db.session.flush()
+
+        # Copy colors, building old UUID → new UUID mapping
+        source_colors = ProjectColor.query.filter_by(
+            project_id=source_project.id
+        ).order_by(ProjectColor.sort_order).all()
+
+        color_uuid_map = {}  # old_id → new_id
+        for pc in source_colors:
+            new_id = str(uuid.uuid4())
+            color_uuid_map[pc.id] = new_id
+            db.session.add(ProjectColor(
+                id=new_id,
+                project_id=clone.id,
+                color_id=pc.color_id,
+                symbol=pc.symbol,
+                sort_order=pc.sort_order,
+            ))
+
+        # Copy layers with cells and paths
+        source_layers = ProjectLayer.query.filter_by(
+            project_id=source_project.id
+        ).order_by(ProjectLayer.sort_order).all()
+
+        layer_id_map = {}  # old_id → new_id
+        for layer in source_layers:
+            new_layer_id = str(uuid.uuid4())
+            layer_id_map[layer.id] = new_layer_id
+
+            db.session.add(ProjectLayer(
+                id=new_layer_id,
+                project_id=clone.id,
+                layer_type=layer.layer_type,
+                name=layer.name,
+                visible=layer.visible,
+                active_for_export=layer.active_for_export,
+                editable=layer.editable,
+                opacity=layer.opacity,
+                sort_order=layer.sort_order,
+            ))
+
+            # Copy cells with remapped color UUIDs
+            cells_row = ProjectLayerCells.query.get(layer.id)
+            new_cells = {}
+            if cells_row and cells_row.data:
+                for cell_key, stitches in cells_row.data.items():
+                    stitch_list = stitches if isinstance(stitches, list) else [stitches]
+                    remapped = []
+                    for s in stitch_list:
+                        new_color = color_uuid_map.get(s.get('color', ''))
+                        if new_color:
+                            remapped.append({'color': new_color, 'stitch': s.get('stitch', 'full')})
+                    if remapped:
+                        new_cells[cell_key] = remapped
+
+            db.session.add(ProjectLayerCells(layer_id=new_layer_id, data=new_cells))
+
+            # Copy paths with remapped color UUIDs
+            paths_row = ProjectLayerPaths.query.get(layer.id)
+            new_paths = []
+            if paths_row and paths_row.data:
+                for p in paths_row.data:
+                    new_color = color_uuid_map.get(p.get('color', ''))
+                    if new_color:
+                        new_paths.append({
+                            'startX': p['startX'],
+                            'startY': p['startY'],
+                            'endX': p['endX'],
+                            'endY': p['endY'],
+                            'color': new_color,
+                            'stitch': p.get('stitch', 'line'),
+                        })
+
+            db.session.add(ProjectLayerPaths(layer_id=new_layer_id, data=new_paths))
+
+            # Copy reference image if present
+            image_row = ProjectLayerImage.query.get(layer.id)
+            if image_row and image_row.data:
+                db.session.add(ProjectLayerImage(
+                    layer_id=new_layer_id,
+                    data=image_row.data,
+                ))
+
+        # Remap active layer ID
+        clone.active_layer_id = layer_id_map.get(source_project.active_layer_id)
+
+        db.session.commit()
+        return clone
 
     @staticmethod
     def get_user_projects(user_id: str, include_deleted: bool = False) -> List[Project]:
@@ -732,7 +847,7 @@ class ProjectService:
             ],
             'activeLayerId': image_layer_id,
             'properties': {
-                'majorGridInterval': 10,
+                'majorGridInterval': current_app.config.get('MAJOR_GRID_INTERVAL', 5),
                 'showGridNumbers': False,
                 'defaultStitchType': 'full'
             }

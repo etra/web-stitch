@@ -45,6 +45,9 @@ class Config:
 
     # Palette color limit per project
     MAX_PALETTE_COLORS = 128
+
+    # Major grid line interval (every N stitches)
+    MAJOR_GRID_INTERVAL = 5
     UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads')
 
     # OAuth configuration

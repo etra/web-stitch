@@ -81,6 +81,13 @@
                         <i class="bi bi-arrow-left me-1"></i>Back to Patterns
                     </a>
                     {% endif %}
+                    {% if session.get('user_id') %}
+                    <form method="POST" action="{{ url_for('projects.clone', project_id=project.id) }}" class="m-0">
+                        <button type="submit" class="btn btn-outline-primary">
+                            <i class="bi bi-copy me-1"></i>Clone to My Projects
+                        </button>
+                    </form>
+                    {% endif %}
                     <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#pdfOptionsModal">
                         <i class="bi bi-file-pdf me-1"></i>Download PDF
                     </button>
@@ -163,8 +170,8 @@
                             <h6 class="alert-heading"><i class="bi bi-lightbulb me-1"></i>Tips</h6>
                             <ul class="mb-0 small">
                                 <li>Click "Download PDF" to get a printable version</li>
-                                <li>Grid lines mark every 10 stitches</li>
-                                <li>Pattern pages show 50x50 stitches with 5-stitch overlap</li>
+                                <li>Grid lines mark every 5 stitches</li>
+                                <li>Pattern pages show 30x40 stitches with 3-stitch overlap</li>
                             </ul>
                         </div>
                     </div>
@@ -303,6 +310,13 @@
                                 </svg>
                                 Chart
                             </label>
+                            <input type="radio" class="btn-check" name="displayMode" id="modeChartBW" autocomplete="off">
+                            <label class="btn btn-outline-primary btn-sm" for="modeChartBW" title="Black & white symbols on white grid (ink-friendly)">
+                                <svg class="me-1" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align: text-bottom;">
+                                    <rect x="1" y="1" width="14" height="14" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><text x="8" y="13" text-anchor="middle" font-size="12" font-weight="bold" font-family="sans-serif">A</text>
+                                </svg>
+                                B&amp;W
+                            </label>
                             <input type="radio" class="btn-check" name="displayMode" id="modeStitch" autocomplete="off">
                             <label class="btn btn-outline-primary btn-sm" for="modeStitch" title="Colored thread paths showing stitch shapes">
                                 <svg class="me-1" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align: text-bottom;">
@@ -349,7 +363,7 @@
                         {% if page.total_rows > 1 or page.total_cols > 1 %}
                         <p class="text-muted mt-3 small">
                             <i class="bi bi-info-circle me-1"></i>
-                            This page overlaps with adjacent pages by 5 stitches for easier alignment when stitching.
+                            This page overlaps with adjacent pages by 3 stitches for easier alignment when stitching.
                         </p>
                         {% endif %}
                     </div>
@@ -383,6 +397,13 @@
                                 <label class="form-check-label" for="pdfModeChart">
                                     <strong>Chart Symbol</strong>
                                     <div class="text-muted small">Filled color cells with symbols — traditional chart notation</div>
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" name="pdfDisplayMode" id="pdfModeChartBW">
+                                <label class="form-check-label" for="pdfModeChartBW">
+                                    <strong>Chart Symbol (B&amp;W)</strong>
+                                    <div class="text-muted small">Black &amp; white symbols on white grid — ink-friendly for printing</div>
                                 </label>
                             </div>
                             <div class="form-check mb-2">
@@ -437,6 +458,9 @@
      *     Filled color cells with symbol characters.
      *     Traditional cross-stitch chart notation used for reading patterns.
      *
+     *   Chart Symbol (B&W) — color=0, stitch=0, symbol=1
+     *     Black symbols on white grid. Ink-friendly for printing.
+     *
      *   Stitch Preview — color=0, stitch=1, symbol=0
      *     Colored thread paths (X, half, quarter) on a white grid.
      *     Shows how the actual stitchwork will look.
@@ -446,7 +470,7 @@
      */
 
     // --- Display state ---
-    // "chart" = Chart Symbol (default), "stitch" = Stitch Preview
+    // "chart" = Chart Symbol (default), "chart-bw" = B&W Chart, "stitch" = Stitch Preview
     let displayMode = 'chart';
     let showLines = true;
 
@@ -458,6 +482,9 @@
     function getDisplayFlags() {
         if (displayMode === 'chart') {
             return { color: true, stitch: false, symbol: true, line: showLines };
+        }
+        if (displayMode === 'chart-bw') {
+            return { color: false, stitch: false, symbol: true, line: showLines };
         }
         return { color: false, stitch: true, symbol: false, line: showLines };
     }
@@ -479,6 +506,9 @@
     // --- Inline controls ---
     document.getElementById('modeChart').addEventListener('change', function() {
         if (this.checked) { displayMode = 'chart'; updatePatternImages(); }
+    });
+    document.getElementById('modeChartBW').addEventListener('change', function() {
+        if (this.checked) { displayMode = 'chart-bw'; updatePatternImages(); }
     });
     document.getElementById('modeStitch').addEventListener('change', function() {
         if (this.checked) { displayMode = 'stitch'; updatePatternImages(); }
@@ -533,6 +563,7 @@
     // Sync modal with current state when it opens
     document.getElementById('pdfOptionsModal').addEventListener('show.bs.modal', function() {
         document.getElementById('pdfModeChart').checked = (displayMode === 'chart');
+        document.getElementById('pdfModeChartBW').checked = (displayMode === 'chart-bw');
         document.getElementById('pdfModeStitch').checked = (displayMode === 'stitch');
         document.getElementById('pdfShowLine').checked = showLines;
         updatePdfLink();
@@ -544,6 +575,13 @@
         if (this.checked) {
             displayMode = 'chart';
             document.getElementById('modeChart').checked = true;
+            onModalChange();
+        }
+    });
+    document.getElementById('pdfModeChartBW').addEventListener('change', function() {
+        if (this.checked) {
+            displayMode = 'chart-bw';
+            document.getElementById('modeChartBW').checked = true;
             onModalChange();
         }
     });

@@ -110,7 +110,7 @@ def get_project_data(project_id):
         ],
         'layers': _build_layers_data(project_id),
         'properties': {
-            'majorGridInterval': project.major_grid_interval or 10,
+            'majorGridInterval': current_app.config.get('MAJOR_GRID_INTERVAL', 5),
             'showGridNumbers': project.show_grid_numbers or False,
             'defaultStitchType': project.default_stitch_type or 'full',
         },

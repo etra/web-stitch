@@ -17,6 +17,17 @@ def login_required(f):
     return decorated_function
 
 
+def admin_required(f):
+    """Decorator to require admin privileges for routes"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('is_admin'):
+            from flask import abort
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated_function
+
+
 @bp.route('/login', methods=['GET', 'POST'])
 def login():
     """
@@ -79,6 +90,7 @@ def verify_magic_link(token):
     session.permanent = True
     session['user_id'] = user.id
     session['user_email'] = user.email
+    session['is_admin'] = user.is_admin
 
     flash(f'Welcome, {user.email}!', 'success')
     return redirect(url_for('projects.list'))
@@ -91,6 +103,7 @@ def logout():
     """
     session.pop('user_id', None)
     session.pop('user_email', None)
+    session.pop('is_admin', None)
     flash('You have been logged out.', 'info')
     return redirect(url_for('main.index'))
 
@@ -133,6 +146,7 @@ def callback_google():
         session.permanent = True
         session['user_id'] = user.id
         session['user_email'] = user.email
+        session['is_admin'] = user.is_admin
 
         flash(f'Welcome, {user.email}!', 'success')
         return redirect(url_for('projects.list'))
@@ -179,6 +193,7 @@ def callback_facebook():
         session.permanent = True
         session['user_id'] = user.id
         session['user_email'] = user.email
+        session['is_admin'] = user.is_admin
 
         flash(f'Welcome, {user.email}!', 'success')
         return redirect(url_for('projects.list'))

@@ -27,7 +27,7 @@ class ProjectColor(db.Model):
 
     color = db.relationship('Color',
          primaryjoin='ProjectColor.color_id==Color.id',
-         foreign_keys='[Color.id]',
+         foreign_keys='[ProjectColor.color_id]',
          uselist=False)
 
     def __repr__(self):

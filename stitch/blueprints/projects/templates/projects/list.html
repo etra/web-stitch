@@ -119,6 +119,15 @@
                                     </li>
                                     <li>
                                         <form method="POST"
+                                              action="{{ url_for('projects.clone', project_id=project.id) }}"
+                                              class="m-0">
+                                            <button type="submit" class="dropdown-item">
+                                                <i class="bi bi-copy me-2"></i>Clone
+                                            </button>
+                                        </form>
+                                    </li>
+                                    <li>
+                                        <form method="POST"
                                               action="{{ url_for('projects.toggle_visibility', project_id=project.id) }}"
                                               class="m-0">
                                             <button type="submit" class="dropdown-item">

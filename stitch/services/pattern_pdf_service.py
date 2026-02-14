@@ -58,7 +58,7 @@ class PatternPDFService:
     Creates multi-page PDFs with:
     - Page 1: Overview with colored pattern preview and project info
     - Page 2: Color legend with thread requirements
-    - Pages 3+: Paginated symbol charts (50x50 stitches with overlap)
+    - Pages 3+: Paginated symbol charts (30x40 stitches with 3-stitch overlap)
     """
 
     # Page settings
@@ -136,7 +136,7 @@ class PatternPDFService:
 
         # Pattern grid pages
         page_definitions = PatternRenderer.calculate_pattern_pages(
-            project.width, project.height, page_size=50, overlap=5
+            project.width, project.height
         )
 
         for page_def in page_definitions:
@@ -265,8 +265,8 @@ class PatternPDFService:
         # Tips section
         elements.append(Paragraph('Tips for Stitching', styles['SectionHeader']))
         tips = [
-            '• Grid lines mark every 10 stitches for easier counting',
-            '• Each pattern page shows 50×50 stitches with 5-stitch overlap',
+            '• Grid lines mark every 5 stitches for easier counting',
+            '• Each pattern page shows 30×40 stitches with 3-stitch overlap',
             '• Check off colors in the legend as you complete them',
             '• Start stitching from the center of your fabric for best results',
         ]
@@ -566,7 +566,7 @@ class PatternPDFService:
         if page_def['total_rows'] > 1 or page_def['total_cols'] > 1:
             elements.append(Spacer(1, 3 * mm))
             elements.append(Paragraph(
-                'This page overlaps with adjacent pages by 5 stitches for easier alignment.',
+                'This page overlaps with adjacent pages by 3 stitches for easier alignment.',
                 styles['SmallNote']
             ))
 

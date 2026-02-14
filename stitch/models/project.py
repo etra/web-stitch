@@ -17,7 +17,7 @@ SAMPLE_PROJECT = {
         "description": "My first cross-stitch project",
         "properties": {
             "defaultStitchType": "full",
-            "majorGridInterval": 10,
+            "majorGridInterval": 5,
             "showGridNumbers": False
         },
         "status": 0,
@@ -395,7 +395,7 @@ class Project(db.Model):
 
     # Normalized project-level properties
     active_layer_id = db.Column(db.String(36), nullable=True)
-    major_grid_interval = db.Column(db.Integer, default=10)
+    major_grid_interval = db.Column(db.Integer, default=5)
     show_grid_numbers = db.Column(db.Boolean, default=False)
     default_stitch_type = db.Column(db.String(30), default='full')
 

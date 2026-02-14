@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Project Detail — Admin — OurStitch{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">Project Detail</h1>
+        <a href="{{ url_for('admin.projects') }}" class="btn btn-outline-secondary btn-sm">Back to Projects</a>
+    </div>
+
+    {% if not project %}
+    <div class="alert alert-warning">Project not found.</div>
+    {% else %}
+    <div class="row g-4">
+        <div class="col-md-6">
+            <div class="card">
+                <img src="{{ url_for('admin.project_thumbnail_large', project_id=project.id) }}"
+                     class="card-img-top" alt="{{ project.name }}"
+                     style="image-rendering: pixelated;">
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h4 class="card-title">{{ project.name }}</h4>
+                    {% if project.description %}
+                    <p class="text-body-secondary">{{ project.description }}</p>
+                    {% endif %}
+
+                    <table class="table table-sm mb-3">
+                        <tbody>
+                            <tr>
+                                <th class="text-body-secondary" style="width: 140px;">Owner</th>
+                                <td>{{ owner.email if owner else '—' }}</td>
+                            </tr>
+                            <tr>
+                                <th class="text-body-secondary">Size</th>
+                                <td>{{ project.width }}&times;{{ project.height }}</td>
+                            </tr>
+                            <tr>
+                                <th class="text-body-secondary">Status</th>
+                                <td>
+                                    {% if project.status == ProjectStatus.PUBLIC %}
+                                        <span class="badge bg-success">Public</span>
+                                    {% elif project.status == ProjectStatus.PRIVATE %}
+                                        <span class="badge bg-secondary">Private</span>
+                                    {% elif project.status == ProjectStatus.DELETED %}
+                                        <span class="badge bg-danger">Deleted</span>
+                                    {% else %}
+                                        <span class="badge bg-light text-dark">Default</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% if project.difficulty_label %}
+                            <tr>
+                                <th class="text-body-secondary">Difficulty</th>
+                                <td>{{ project.difficulty_label }}</td>
+                            </tr>
+                            {% endif %}
+                            <tr>
+                                <th class="text-body-secondary">Votes</th>
+                                <td>{{ project.vote_score }}</td>
+                            </tr>
+                            <tr>
+                                <th class="text-body-secondary">Created</th>
+                                <td>{{ project.created_at.strftime('%Y-%m-%d %H:%M') if project.created_at else '—' }}</td>
+                            </tr>
+                            <tr>
+                                <th class="text-body-secondary">Updated</th>
+                                <td>{{ project.updated_at.strftime('%Y-%m-%d %H:%M') if project.updated_at else '—' }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="d-flex gap-2">
+                        <a href="{{ url_for('projects.editor', project_id=project.id) }}" class="btn btn-primary btn-sm" target="_blank">
+                            <i class="bi bi-pencil-square me-1"></i>Open in Editor
+                        </a>
+                        {% if project.is_public %}
+                        <a href="{{ url_for('print.view', project_id=project.id) }}" class="btn btn-outline-primary btn-sm" target="_blank">
+                            <i class="bi bi-eye me-1"></i>View Pattern
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

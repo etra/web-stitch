@@ -7,6 +7,8 @@ from pathlib import Path
 import base64
 from PIL import Image, ImageDraw, ImageFont
 
+from flask import current_app
+
 from stitch.models.stitch import STITCH_TYPES
 
 
@@ -477,30 +479,31 @@ class PatternRenderer:
                   cell_size: int) -> None:
         """Draw grid lines on the pattern"""
         img_height, img_width = image.shape[:2]
+        major_interval = current_app.config.get('MAJOR_GRID_INTERVAL', 5)
 
         # Light gray for minor grid
         minor_color = (220, 220, 220)
-        # Dark gray for major grid (every 10 cells)
         major_color = (150, 150, 150)
 
         # Vertical lines
         for x in range(width + 1):
             x_pos = x * cell_size
-            color = major_color if x % 10 == 0 else minor_color
-            thickness = 2 if x % 10 == 0 else 1
+            color = major_color if x % major_interval == 0 else minor_color
+            thickness = 2 if x % major_interval == 0 else 1
             cv2.line(image, (x_pos, 0), (x_pos, img_height), color, thickness)
 
         # Horizontal lines
         for y in range(height + 1):
             y_pos = y * cell_size
-            color = major_color if y % 10 == 0 else minor_color
-            thickness = 2 if y % 10 == 0 else 1
+            color = major_color if y % major_interval == 0 else minor_color
+            thickness = 2 if y % major_interval == 0 else 1
             cv2.line(image, (0, y_pos), (img_width, y_pos), color, thickness)
 
     @staticmethod
     def _draw_grid_numbers(image: np.ndarray, width: int, height: int,
                           cell_size: int) -> None:
-        """Draw grid numbers at every 10th cell"""
+        """Draw grid numbers at every major grid interval."""
+        major_interval = current_app.config.get('MAJOR_GRID_INTERVAL', 5)
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = max(0.3, cell_size / 50)
         thickness = max(1, cell_size // 30)
@@ -522,7 +525,7 @@ class PatternRenderer:
         new_image[padding_top:, padding_left:] = image
 
         # Draw numbers along top edge (X axis)
-        for x in range(0, width + 1, 10):
+        for x in range(0, width + 1, major_interval):
             x_pos = padding_left + x * cell_size
             text = str(x)
             (text_width, text_height), _ = cv2.getTextSize(
@@ -543,7 +546,7 @@ class PatternRenderer:
             )
 
         # Draw numbers along left edge (Y axis)
-        for y in range(0, height + 1, 10):
+        for y in range(0, height + 1, major_interval):
             y_pos = padding_top + y * cell_size
             text = str(y)
             (text_width, text_height), _ = cv2.getTextSize(
@@ -735,31 +738,38 @@ class PatternRenderer:
 
     @staticmethod
     def calculate_pattern_pages(width: int, height: int,
-                                page_size: int = 50,
-                                overlap: int = 5) -> List[Dict]:
+                                page_width: int = 30,
+                                page_height: int = 40,
+                                overlap: int = 3) -> List[Dict]:
         """
         Calculate page layout for paginated pattern display.
+
+        Each page shows page_width/page_height content stitches plus
+        ``overlap`` extra stitches extending past the boundary.  Pages
+        step by page_width/page_height so the overlap zone appears on
+        both the trailing edge of one page and the leading edge of the
+        next (e.g. 0-33, 30-63 with overlap=3, page_width=30).
 
         Args:
             width: Pattern width in stitches
             height: Pattern height in stitches
-            page_size: Stitches per page (default 50x50)
-            overlap: Overlap between pages for continuity (default 5)
+            page_width: Content stitches per page horizontally (default 30)
+            page_height: Content stitches per page vertically (default 40)
+            overlap: Extra stitches beyond each page boundary (default 3)
 
         Returns:
             List of page definitions with start/end coordinates
         """
-        effective_size = page_size - overlap
-        cols = max(1, math.ceil(width / effective_size))
-        rows = max(1, math.ceil(height / effective_size))
+        cols = max(1, math.ceil(width / page_width))
+        rows = max(1, math.ceil(height / page_height))
 
         pages = []
         for row in range(rows):
             for col in range(cols):
-                x_start = col * effective_size
-                y_start = row * effective_size
-                x_end = min(x_start + page_size, width)
-                y_end = min(y_start + page_size, height)
+                x_start = col * page_width
+                y_start = row * page_height
+                x_end = min(x_start + page_width + overlap, width)
+                y_end = min(y_start + page_height + overlap, height)
 
                 pages.append({
                     'page_num': len(pages) + 1,
@@ -771,7 +781,7 @@ class PatternRenderer:
                     'y_start': y_start,
                     'x_end': x_end,
                     'y_end': y_end,
-                    'label': f"({x_start + 1}-{x_end}, {y_start + 1}-{y_end})"
+                    'label': f"({x_start}-{x_end - 1}, {y_start}-{y_end - 1})"
                 })
 
         return pages
@@ -1103,8 +1113,9 @@ class PatternRenderer:
     def _draw_region_grid(image: np.ndarray, region_width: int,
                           region_height: int, cell_size: int,
                           x_offset: int, y_offset: int) -> None:
-        """Draw grid lines for a pattern region with major lines at 10-cell intervals."""
+        """Draw grid lines for a pattern region with major lines at configured intervals."""
         img_height, img_width = image.shape[:2]
+        major_interval = current_app.config.get('MAJOR_GRID_INTERVAL', 5)
 
         minor_color = (220, 220, 220)
         major_color = (150, 150, 150)
@@ -1113,23 +1124,24 @@ class PatternRenderer:
         for x in range(region_width + 1):
             x_pos = x * cell_size
             global_x = x + x_offset
-            color = major_color if global_x % 10 == 0 else minor_color
-            thickness = 2 if global_x % 10 == 0 else 1
+            color = major_color if global_x % major_interval == 0 else minor_color
+            thickness = 2 if global_x % major_interval == 0 else 1
             cv2.line(image, (x_pos, 0), (x_pos, img_height), color, thickness)
 
         # Horizontal lines
         for y in range(region_height + 1):
             y_pos = y * cell_size
             global_y = y + y_offset
-            color = major_color if global_y % 10 == 0 else minor_color
-            thickness = 2 if global_y % 10 == 0 else 1
+            color = major_color if global_y % major_interval == 0 else minor_color
+            thickness = 2 if global_y % major_interval == 0 else 1
             cv2.line(image, (0, y_pos), (img_width, y_pos), color, thickness)
 
     @staticmethod
     def _add_region_numbers(image: np.ndarray, region_width: int,
                             region_height: int, cell_size: int,
                             x_offset: int, y_offset: int) -> None:
-        """Add coordinate numbers to a pattern region image."""
+        """Add coordinate numbers on all four sides of a pattern region image."""
+        major_interval = current_app.config.get('MAJOR_GRID_INTERVAL', 5)
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = max(0.3, cell_size / 60)
         thickness = max(1, cell_size // 30)
@@ -1137,45 +1149,58 @@ class PatternRenderer:
 
         padding_top = max(20, int(cell_size * 0.8))
         padding_left = max(30, int(cell_size * 1.2))
+        padding_bottom = padding_top
+        padding_right = padding_left
 
         img_height, img_width = image.shape[:2]
         new_image = np.full(
-            (img_height + padding_top, img_width + padding_left, 3),
+            (img_height + padding_top + padding_bottom,
+             img_width + padding_left + padding_right, 3),
             255,
             dtype=np.uint8
         )
 
-        new_image[padding_top:, padding_left:] = image
+        new_image[padding_top:padding_top + img_height,
+                  padding_left:padding_left + img_width] = image
 
-        # Draw X-axis numbers (top)
+        # Draw X-axis numbers (top and bottom)
         for x in range(region_width + 1):
             global_x = x + x_offset
-            if global_x % 10 == 0:
+            if global_x % major_interval == 0:
                 x_pos = padding_left + x * cell_size
                 text = str(global_x)
                 (text_width, text_height), _ = cv2.getTextSize(
                     text, font, font_scale, thickness
                 )
                 text_x = x_pos - text_width // 2
-                text_y = padding_top - 5
 
-                cv2.putText(new_image, text, (text_x, text_y), font,
+                # Top
+                cv2.putText(new_image, text, (text_x, padding_top - 5), font,
                            font_scale, color, thickness, cv2.LINE_AA)
+                # Bottom
+                cv2.putText(new_image, text,
+                           (text_x, padding_top + img_height + text_height + 5),
+                           font, font_scale, color, thickness, cv2.LINE_AA)
 
-        # Draw Y-axis numbers (left)
+        # Draw Y-axis numbers (left and right)
         for y in range(region_height + 1):
             global_y = y + y_offset
-            if global_y % 10 == 0:
+            if global_y % major_interval == 0:
                 y_pos = padding_top + y * cell_size
                 text = str(global_y)
                 (text_width, text_height), _ = cv2.getTextSize(
                     text, font, font_scale, thickness
                 )
-                text_x = padding_left - text_width - 5
                 text_y = y_pos + text_height // 2
 
-                cv2.putText(new_image, text, (text_x, text_y), font,
-                           font_scale, color, thickness, cv2.LINE_AA)
+                # Left
+                cv2.putText(new_image, text,
+                           (padding_left - text_width - 5, text_y),
+                           font, font_scale, color, thickness, cv2.LINE_AA)
+                # Right
+                cv2.putText(new_image, text,
+                           (padding_left + img_width + 5, text_y),
+                           font, font_scale, color, thickness, cv2.LINE_AA)
 
         # Resize original image to new dimensions
         image.resize(new_image.shape, refcheck=False)

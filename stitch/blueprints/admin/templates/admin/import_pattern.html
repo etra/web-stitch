@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block title %}Import Pattern — Admin — OurStitch{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">Import Pattern from JSON</h1>
+        <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-secondary btn-sm">Back to Dashboard</a>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-6">
+            <div class="card mb-4">
+                <div class="card-header"><strong>Paste Pattern JSON</strong></div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <textarea name="pattern_json" class="form-control font-monospace" rows="30" placeholder="Paste your pattern JSON here...">{{ pattern_json }}</textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Import Pattern</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card mb-4">
+                <div class="card-header"><strong>LLM Prompt</strong></div>
+                <div class="card-body">
+                    <p class="text-body-secondary small mb-2">Copy this prompt and send it to an LLM (Claude, ChatGPT, etc.) to generate a pattern.</p>
+                    <div class="position-relative">
+                        <pre class="bg-body-tertiary p-3 rounded small" id="llm-prompt" style="white-space: pre-wrap;">Generate a cross-stitch pattern as JSON with the following structure:
+
+```json
+{
+    "name": "Pattern Name",
+    "description": "Short description",
+    "width": 20,
+    "height": 20,
+    "colors": {
+        ".": null,
+        "R": "321",
+        "B": "310",
+        "G": "699"
+    },
+    "grid": [
+        ".....RRRR...........",
+        "...RRRRRRRR.........",
+        "..RRRRRRRRRR........"
+    ],
+    "three_quarter_stitches": [
+        {"x": 4, "y": 0, "color": "R", "corner": "tl"},
+        {"x": 4, "y": 0, "color": "B", "corner": "br"}
+    ],
+    "half_stitches": [
+        {"x": 3, "y": 5, "color": "G", "direction": "/"},
+        {"x": 4, "y": 5, "color": "G", "direction": "\\"}
+    ],
+    "quarter_stitches": [
+        {"x": 7, "y": 8, "color": "R", "corner": "tl"}
+    ],
+    "back_stitches": [
+        {"startX": 0, "startY": 5, "endX": 5, "endY": 5, "color": "B"},
+        {"startX": 5, "startY": 5, "endX": 5, "endY": 10, "color": "B"}
+    ]
+}
+```
+
+## Field reference
+
+**Required fields:**
+- "name": pattern title
+- "description": short description
+- "width" / "height": grid dimensions (10–100 stitches)
+- "colors": maps single-character aliases to DMC thread codes. Use null for empty cells (typically ".").
+- "grid": array of strings, one per row (height rows, each width characters). Each character is a color alias. This grid places **full cross stitches**.
+
+**Optional stitch arrays (for detail work):**
+- "three_quarter_stitches": array of objects with x, y, color (alias), corner ("tl", "tr", "bl", "br"). A three-quarter stitch covers 2 quadrants. Two **opposite** corners at the same cell (tl+br or tr+bl) can coexist with different colors.
+- "half_stitches": array of objects with x, y, color, direction ("/" or "\\"). A half stitch is one diagonal line across the cell.
+- "quarter_stitches": array of objects with x, y, color, corner ("tl", "tr", "bl", "br"). A quarter stitch goes from the named corner to the cell center.
+- "back_stitches": array of objects with startX, startY, endX, endY, color. These are lines (outlines/details) connecting grid **corners** (intersections). Coordinates are 0..width for X and 0..height for Y (inclusive — corners, not cells).
+
+## Rules
+- The grid handles full cross stitches. Leave cells as "." where you want partial stitches instead, then specify them in the appropriate array.
+- All color aliases used in any field must be defined in "colors".
+- Use real DMC color codes. Common ones: 310 (Black), blanc (White), 321 (Red), 699 (Green), 796 (Royal Blue), 444 (Dark Lemon), 740 (Tangerine), 550 (Violet), 3799 (Charcoal), 415 (Pearl Gray), 898 (Coffee Brown), 307 (Lemon), 666 (Bright Red), 602 (Cranberry), 907 (Light Parrot Green), 814 (Dark Garnet), 3041 (Medium Antique Violet), 3761 (Light Sky Blue), 739 (Ultra Very Light Tan).
+- Max 128 unique colors.
+- three_quarter_stitches, half_stitches, quarter_stitches, and back_stitches are all optional — only include them when the design needs detail or outlines.
+
+Create a [DESCRIBE YOUR PATTERN HERE, e.g. "cute cat face, 30x30, with back stitch outlines and three-quarter stitches for rounded edges"].</pre>
+                        <button class="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-2" onclick="copyToClipboard('llm-prompt')" title="Copy prompt">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header"><strong>Example — Full Stitches Only</strong></div>
+                <div class="card-body">
+                    <p class="text-body-secondary small mb-2">Simple 11x10 heart using just the grid.</p>
+                    <div class="position-relative">
+                        <pre class="bg-body-tertiary p-3 rounded small" id="example-simple">{
+    "name": "Simple Heart",
+    "description": "A red heart on empty background",
+    "width": 11,
+    "height": 10,
+    "colors": {
+        ".": null,
+        "R": "321"
+    },
+    "grid": [
+        "...........",
+        ".RR...RR...",
+        "RRRR.RRRR..",
+        "RRRRRRRRR..",
+        "RRRRRRRRR..",
+        ".RRRRRRR...",
+        "..RRRRR....",
+        "...RRR.....",
+        "....R......",
+        "..........."
+    ]
+}</pre>
+                        <button class="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-2" onclick="copyToClipboard('example-simple')" title="Copy">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><strong>Example — With Detail Stitches</strong></div>
+                <div class="card-body">
+                    <p class="text-body-secondary small mb-2">12x12 diamond with rounded corners (three-quarter stitches) and a back stitch outline.</p>
+                    <div class="position-relative">
+                        <pre class="bg-body-tertiary p-3 rounded small" id="example-detail">{
+    "name": "Outlined Diamond",
+    "description": "Blue diamond with rounded corners and black outline",
+    "width": 12,
+    "height": 12,
+    "colors": {
+        ".": null,
+        "B": "796",
+        "K": "310"
+    },
+    "grid": [
+        "............",
+        ".....BB.....",
+        "....BBBB....",
+        "...BBBBBB...",
+        "..BBBBBBBB..",
+        ".BBBBBBBBBB.",
+        ".BBBBBBBBBB.",
+        "..BBBBBBBB..",
+        "...BBBBBB...",
+        "....BBBB....",
+        ".....BB.....",
+        "............"
+    ],
+    "three_quarter_stitches": [
+        {"x": 4, "y": 1, "color": "B", "corner": "br"},
+        {"x": 7, "y": 1, "color": "B", "corner": "bl"},
+        {"x": 4, "y": 10, "color": "B", "corner": "tr"},
+        {"x": 7, "y": 10, "color": "B", "corner": "tl"}
+    ],
+    "back_stitches": [
+        {"startX": 5, "startY": 1, "endX": 7, "endY": 1, "color": "K"},
+        {"startX": 7, "startY": 1, "endX": 10, "endY": 4, "color": "K"},
+        {"startX": 10, "startY": 4, "endX": 11, "endY": 6, "color": "K"},
+        {"startX": 11, "startY": 6, "endX": 10, "endY": 8, "color": "K"},
+        {"startX": 10, "startY": 8, "endX": 7, "endY": 11, "color": "K"},
+        {"startX": 7, "startY": 11, "endX": 5, "endY": 11, "color": "K"},
+        {"startX": 5, "startY": 11, "endX": 2, "endY": 8, "color": "K"},
+        {"startX": 2, "startY": 8, "endX": 1, "endY": 6, "color": "K"},
+        {"startX": 1, "startY": 6, "endX": 2, "endY": 4, "color": "K"},
+        {"startX": 2, "startY": 4, "endX": 5, "endY": 1, "color": "K"}
+    ]
+}</pre>
+                        <button class="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-2" onclick="copyToClipboard('example-detail')" title="Copy">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copyToClipboard(id) {
+    navigator.clipboard.writeText(document.getElementById(id).textContent);
+}
+</script>
+{% endblock %}

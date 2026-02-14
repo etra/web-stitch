@@ -264,6 +264,31 @@ def delete(project_id):
     return redirect(url_for('projects.list'))
 
 
+@bp.route('/<project_id>/clone', methods=['POST'])
+@login_required
+def clone(project_id):
+    """Clone a project. Allowed for own projects or public projects."""
+    user_id = session.get('user_id')
+    project = ProjectService.get_project(project_id)
+
+    if not project or project.is_deleted:
+        flash('Project not found.', 'warning')
+        return redirect(url_for('projects.list'))
+
+    if not project.is_public and project.user_id != user_id:
+        flash('Project not found.', 'warning')
+        return redirect(url_for('projects.list'))
+
+    try:
+        clone = ProjectService.clone_project(project, user_id)
+        flash(f'Project cloned as "{clone.name}".', 'success')
+        return redirect(url_for('projects.editor', project_id=clone.id))
+    except Exception as e:
+        current_app.logger.error(f'Clone error: {e}')
+        flash('An error occurred while cloning the project.', 'danger')
+        return redirect(url_for('projects.list'))
+
+
 # =============================================================================
 # WIZARD ROUTES - Simplified Project Creation Flow (3 steps)
 # =============================================================================

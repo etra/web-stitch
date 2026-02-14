@@ -108,6 +108,9 @@
                             <li class="dropdown-header d-sm-none">{{ session.user_email }}</li>
                             <li class="d-sm-none"><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ url_for('projects.list') }}"><i class="bi bi-folder me-2"></i>My Projects</a></li>
+                            {% if session.get('is_admin') %}
+                            <li><a class="dropdown-item" href="{{ url_for('admin.dashboard') }}"><i class="bi bi-shield-lock me-2"></i>Admin</a></li>
+                            {% endif %}
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
                         </ul>
