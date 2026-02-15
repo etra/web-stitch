@@ -20,10 +20,10 @@
     <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='img/apple-touch-icon.png') }}">
     <link rel="manifest" href="{{ url_for('static', filename='img/site.webmanifest') }}">
 
-    <title>{% block title %}OurStitch — Create and Share Cross-Stitch Patterns Together{% endblock %}</title>
+    <title>{% block title %}OurStitch — Free Online Cross-Stitch Pattern Editor{% endblock %}</title>
 
     <!-- SEO Meta Tags -->
-    <meta name="description" content="{% block meta_description %}OurStitch is a community-driven platform where cross stitchers create, design, and share cross-stitch patterns. Build patterns stitch by stitch and collaborate with fellow makers.{% endblock %}">
+    <meta name="description" content="{% block meta_description %}Design cross-stitch patterns directly in your browser for free. Draw stitch by stitch, convert images into patterns, and export print-ready PDFs with symbols and color guides.{% endblock %}">
     {% block meta_keywords %}{% endblock %}
     {% block canonical %}{% endblock %}
 
@@ -146,7 +146,7 @@
     <!-- Footer -->
     <footer class="py-4 mt-5 bg-body-secondary">
         <div class="container text-center">
-            <p class="mb-2">&copy; 2026 OurStitch — Create and Share Cross-Stitch Patterns Together</p>
+            <p class="mb-2">&copy; 2026 OurStitch — Free Online Cross-Stitch Pattern Editor</p>
             <p class="mb-2">
                 <a href="{{ url_for('main.privacy') }}" class="text-body-secondary text-decoration-none me-3">Privacy Policy</a>
                 <a href="{{ url_for('main.imprint') }}" class="text-body-secondary text-decoration-none">Imprint</a>
@@ -154,7 +154,10 @@
             <p class="mb-2">
                 <a href="mailto:info@ourstitch.com" class="text-body-secondary text-decoration-none"><i class="bi bi-envelope me-1"></i>info@ourstitch.com</a>
             </p>
-            <p class="text-body-secondary mb-0"><small>A community platform for cross-stitch enthusiasts</small></p>
+            <p class="mb-2">
+                <a href="https://discord.gg/rfQ5wZyNDg" target="_blank" rel="noopener noreferrer" class="text-body-secondary text-decoration-none"><i class="bi bi-discord me-1"></i>Join our Discord</a>
+            </p>
+            <p class="text-body-secondary mb-0"><small>Create cross-stitch patterns for free, right in your browser</small></p>
         </div>
     </footer>
 

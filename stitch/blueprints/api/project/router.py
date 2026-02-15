@@ -52,6 +52,8 @@ def _build_layers_data(project_id):
             'opacity': layer.opacity,
             'referenceImageData': layer_image.data if layer_image else None,
             'sortOrder': layer.sort_order,
+            'offsetX': layer.offset_x or 0,
+            'offsetY': layer.offset_y or 0,
             'cells': layer_cells.cells.model_dump() if layer_cells else {},
             'paths': layer_paths.paths.model_dump() if layer_paths else [],
         })

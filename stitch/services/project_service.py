@@ -200,6 +200,8 @@ class ProjectService:
                 'visible': layer.visible,
                 'activeForExport': layer.active_for_export,
                 'editable': layer.editable,
+                'offsetX': layer.offset_x or 0,
+                'offsetY': layer.offset_y or 0,
                 'cells': converted_cells,
                 'paths': converted_paths
             }
@@ -281,7 +283,9 @@ class ProjectService:
                 active_for_export=layer_data.get('activeForExport', True),
                 editable=layer_data.get('editable', True),
                 opacity=layer_data.get('opacity'),
-                sort_order=idx
+                sort_order=idx,
+                offset_x=layer_data.get('offsetX', 0),
+                offset_y=layer_data.get('offsetY', 0)
             )
             db.session.add(layer)
 
@@ -383,7 +387,9 @@ class ProjectService:
                 active_for_export=layer_data['activeForExport'],
                 editable=layer_data['editable'],
                 opacity=layer_data.get('opacity'),
-                sort_order=layer_data.get('sortOrder', 0)
+                sort_order=layer_data.get('sortOrder', 0),
+                offset_x=layer_data.get('offsetX', 0),
+                offset_y=layer_data.get('offsetY', 0)
             )
             db.session.add(layer)
 

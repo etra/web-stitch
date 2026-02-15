@@ -30,11 +30,11 @@ class SEOService:
     # Site-wide defaults
     SITE_NAME = "OurStitch"
     SITE_URL = "https://ourstitch.com"
-    DEFAULT_TITLE = "OurStitch — Create and Share Cross-Stitch Patterns Together"
+    DEFAULT_TITLE = "OurStitch — Free Online Cross-Stitch Pattern Editor"
     DEFAULT_DESCRIPTION = (
-        "OurStitch is a community-driven platform where cross stitchers create, "
-        "design, and share cross-stitch patterns. Build patterns stitch by stitch "
-        "and collaborate with fellow makers."
+        "Design cross-stitch patterns directly in your browser for free. "
+        "Draw stitch by stitch, convert images into patterns, and export "
+        "print-ready PDFs with symbols and color guides."
     )
 
     @staticmethod

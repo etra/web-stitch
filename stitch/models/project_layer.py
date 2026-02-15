@@ -26,6 +26,8 @@ class ProjectLayer(db.Model):
     opacity = db.Column(db.Float, nullable=True)  # Reference layers only
     image_url = db.Column(db.String(500), nullable=True)  # URL for reference layer images
     sort_order = db.Column(db.Integer, nullable=False, default=0)  # Layer stacking order (0 = bottom)
+    offset_x = db.Column(db.Integer, nullable=False, default=0)  # Horizontal offset in grid cells
+    offset_y = db.Column(db.Integer, nullable=False, default=0)  # Vertical offset in grid cells
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -45,6 +47,8 @@ class ProjectLayer(db.Model):
             'opacity': self.opacity,
             'image_url': self.image_url,
             'sort_order': self.sort_order,
+            'offset_x': self.offset_x or 0,
+            'offset_y': self.offset_y or 0,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat(),
         }

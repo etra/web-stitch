@@ -46,6 +46,8 @@ class LayerResponse(BaseModel):
     opacity: Optional[float] = None
     referenceImageData: Optional[str] = None
     sortOrder: int
+    offsetX: int = 0
+    offsetY: int = 0
     cells: dict[str, list[CellStitch]]
     paths: list[Path]
 
@@ -125,6 +127,8 @@ class SaveProjectLayerRequest(BaseModel):
     opacity: Optional[float] = None
     referenceImageData: Optional[str] = None
     sortOrder: int
+    offsetX: int = 0
+    offsetY: int = 0
     cells: dict[str, list[CellStitch]]
     paths: list[Path]
 
