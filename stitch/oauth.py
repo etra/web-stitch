@@ -28,3 +28,16 @@ def init_oauth(app):
             api_base_url='https://graph.facebook.com/v19.0/',
             client_kwargs={'scope': 'email public_profile'},
         )
+
+    # Discord — manual endpoint configuration
+    if app.config.get('DISCORD_CLIENT_ID'):
+        oauth.register(
+            name='discord',
+            client_id=app.config['DISCORD_CLIENT_ID'],
+            client_secret=app.config['DISCORD_CLIENT_SECRET'],
+            authorize_url='https://discord.com/oauth2/authorize',
+            access_token_url='https://discord.com/api/oauth2/token',
+            api_base_url='https://discord.com/api/v10/',
+            client_kwargs={'scope': 'identify email'},
+            token_endpoint_auth_method='client_secret_post',
+        )

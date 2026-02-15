@@ -1,9 +1,19 @@
+import secrets
+from functools import wraps
+from urllib.parse import urlencode
+
+import jwt as pyjwt
+from jwt import PyJWKClient
 from flask import request, session, render_template, redirect, url_for, flash, current_app
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+
 from stitch.blueprints.auth import bp
 from stitch.services.auth_service import AuthService
 from stitch.services.email_service import EmailService
 from stitch.oauth import oauth
-from functools import wraps
+
+APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys'
 
 
 def login_required(f):
@@ -157,6 +167,131 @@ def callback_google():
         return redirect(url_for('auth.login'))
 
 
+# --- Google One Tap ---
+
+@bp.route('/callback/google-one-tap', methods=['POST'])
+def callback_google_one_tap():
+    """Handle Google One Tap credential callback (form POST from GIS library)"""
+    # Verify CSRF double-submit cookie
+    csrf_token_cookie = request.cookies.get('g_csrf_token')
+    csrf_token_body = request.form.get('g_csrf_token')
+    if not csrf_token_cookie or not csrf_token_body or csrf_token_cookie != csrf_token_body:
+        flash('Sign-in failed: CSRF verification error.', 'danger')
+        return redirect(url_for('auth.login'))
+
+    credential = request.form.get('credential')
+    if not credential:
+        flash('Sign-in failed: no credential received.', 'danger')
+        return redirect(url_for('auth.login'))
+
+    try:
+        client_id = current_app.config.get('GOOGLE_CLIENT_ID')
+        idinfo = id_token.verify_oauth2_token(
+            credential, google_requests.Request(), client_id
+        )
+
+        if not idinfo.get('email_verified'):
+            flash('Your Google email is not verified.', 'danger')
+            return redirect(url_for('auth.login'))
+
+        email = idinfo['email']
+        user = AuthService.find_or_create_user(email=email)
+
+        session.permanent = True
+        session['user_id'] = user.id
+        session['user_email'] = user.email
+        session['is_admin'] = user.is_admin
+
+        flash(f'Welcome, {user.email}!', 'success')
+        return redirect(url_for('projects.list'))
+
+    except Exception as e:
+        current_app.logger.error(f'Google One Tap error: {e}')
+        flash('An error occurred during Google sign-in. Please try again.', 'danger')
+        return redirect(url_for('auth.login'))
+
+
+# --- Apple Sign In ---
+
+@bp.route('/login/apple')
+def login_apple():
+    """Redirect to Apple Sign In authorization page"""
+    client_id = current_app.config.get('APPLE_CLIENT_ID')
+    if not client_id:
+        flash('Apple sign-in is not configured.', 'danger')
+        return redirect(url_for('auth.login'))
+
+    state = secrets.token_urlsafe(32)
+    session['apple_auth_state'] = state
+
+    redirect_uri = url_for('auth.callback_apple', _external=True)
+    params = {
+        'client_id': client_id,
+        'redirect_uri': redirect_uri,
+        'response_type': 'code id_token',
+        'scope': 'email',
+        'response_mode': 'form_post',
+        'state': state,
+    }
+    apple_auth_url = f'https://appleid.apple.com/auth/authorize?{urlencode(params)}'
+    return redirect(apple_auth_url)
+
+
+@bp.route('/callback/apple', methods=['POST'])
+def callback_apple():
+    """Handle Apple Sign In callback (form POST from Apple with id_token)"""
+    # Verify state matches what we stored in session
+    state = request.form.get('state')
+    expected_state = session.pop('apple_auth_state', None)
+    if not state or not expected_state or state != expected_state:
+        flash('Sign-in failed: state verification error.', 'danger')
+        return redirect(url_for('auth.login'))
+
+    id_token_str = request.form.get('id_token')
+    if not id_token_str:
+        flash('Sign-in failed: no identity token received.', 'danger')
+        return redirect(url_for('auth.login'))
+
+    try:
+        client_id = current_app.config.get('APPLE_CLIENT_ID')
+
+        jwks_client = PyJWKClient(APPLE_JWKS_URL)
+        signing_key = jwks_client.get_signing_key_from_jwt(id_token_str)
+        payload = pyjwt.decode(
+            id_token_str,
+            signing_key.key,
+            algorithms=['RS256'],
+            audience=client_id,
+            issuer='https://appleid.apple.com',
+        )
+
+        # Apple's email_verified can be a string "true" or boolean true
+        email_verified = payload.get('email_verified')
+        if email_verified not in (True, 'true'):
+            flash('Your Apple email is not verified.', 'danger')
+            return redirect(url_for('auth.login'))
+
+        email = payload.get('email')
+        if not email:
+            flash('Could not retrieve email from Apple.', 'danger')
+            return redirect(url_for('auth.login'))
+
+        user = AuthService.find_or_create_user(email=email)
+
+        session.permanent = True
+        session['user_id'] = user.id
+        session['user_email'] = user.email
+        session['is_admin'] = user.is_admin
+
+        flash(f'Welcome, {user.email}!', 'success')
+        return redirect(url_for('projects.list'))
+
+    except Exception as e:
+        current_app.logger.error(f'Apple Sign In error: {e}')
+        flash('An error occurred during Apple sign-in. Please try again.', 'danger')
+        return redirect(url_for('auth.login'))
+
+
 # --- Facebook OAuth ---
 
 @bp.route('/login/facebook')
@@ -201,4 +336,52 @@ def callback_facebook():
     except Exception as e:
         current_app.logger.error(f'Facebook OAuth error: {e}')
         flash('An error occurred during Facebook sign-in. Please try again.', 'danger')
+        return redirect(url_for('auth.login'))
+
+
+# --- Discord OAuth ---
+
+@bp.route('/login/discord')
+def login_discord():
+    """Redirect to Discord consent screen"""
+    discord = oauth.create_client('discord')
+    if discord is None:
+        flash('Discord login is not configured.', 'danger')
+        return redirect(url_for('auth.login'))
+    redirect_uri = url_for('auth.callback_discord', _external=True)
+    return discord.authorize_redirect(redirect_uri)
+
+
+@bp.route('/callback/discord')
+def callback_discord():
+    """Handle Discord OAuth callback"""
+    discord = oauth.create_client('discord')
+    if discord is None:
+        flash('Discord login is not configured.', 'danger')
+        return redirect(url_for('auth.login'))
+
+    try:
+        token = discord.authorize_access_token()
+        resp = discord.get('users/@me')
+        profile = resp.json()
+
+        email = profile.get('email')
+        verified = profile.get('verified')
+        if not email or not verified:
+            flash('Could not retrieve a verified email from Discord. Please ensure your Discord account has a verified email.', 'danger')
+            return redirect(url_for('auth.login'))
+
+        user = AuthService.find_or_create_user(email=email)
+
+        session.permanent = True
+        session['user_id'] = user.id
+        session['user_email'] = user.email
+        session['is_admin'] = user.is_admin
+
+        flash(f'Welcome, {user.email}!', 'success')
+        return redirect(url_for('projects.list'))
+
+    except Exception as e:
+        current_app.logger.error(f'Discord OAuth error: {e}')
+        flash('An error occurred during Discord sign-in. Please try again.', 'danger')
         return redirect(url_for('auth.login'))

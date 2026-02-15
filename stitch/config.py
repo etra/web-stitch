@@ -55,6 +55,8 @@ class Config:
     GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
     FACEBOOK_CLIENT_ID = os.getenv('FACEBOOK_CLIENT_ID')
     FACEBOOK_CLIENT_SECRET = os.getenv('FACEBOOK_CLIENT_SECRET')
+    DISCORD_CLIENT_ID = os.getenv('DISCORD_CLIENT_ID')
+    DISCORD_CLIENT_SECRET = os.getenv('DISCORD_CLIENT_SECRET')
 
     # Mail configuration
     MAIL_SERVER = os.getenv('MAIL_SERVER', 'localhost')

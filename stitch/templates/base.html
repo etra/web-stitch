@@ -52,6 +52,15 @@
 
     {% block extra_css %}{% endblock %}
 
+    {% if config.GOOGLE_CLIENT_ID and not session.user_id %}
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <div id="g_id_onload"
+         data-client_id="{{ config.GOOGLE_CLIENT_ID }}"
+         data-login_uri="{{ url_for('auth.callback_google_one_tap', _external=True) }}"
+         data-auto_prompt="true">
+    </div>
+    {% endif %}
+
     <!-- Google Analytics: consent defaults + gtag.js -->
     <script>
         window.dataLayer = window.dataLayer || [];
