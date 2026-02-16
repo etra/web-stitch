@@ -219,9 +219,16 @@ class PatternPDFService:
         # Convert numpy array to PIL Image then to ReportLab Image
         img_buffer = PatternPDFService._numpy_to_image_buffer(overview_img)
 
-        # Calculate image dimensions to fit
-        img_width = min(8 * cm, (PatternPDFService.PAGE_SIZE[0] - 2 * PatternPDFService.MARGIN) * 0.45)
-        pattern_image = Image(img_buffer, width=img_width, height=img_width)
+        # Calculate image dimensions preserving aspect ratio
+        max_img_width = min(8 * cm, (PatternPDFService.PAGE_SIZE[0] - 2 * PatternPDFService.MARGIN) * 0.45)
+        max_img_height = 10 * cm
+        aspect_ratio = project.height / project.width if project.width > 0 else 1
+        img_width = max_img_width
+        img_height = img_width * aspect_ratio
+        if img_height > max_img_height:
+            img_height = max_img_height
+            img_width = img_height / aspect_ratio
+        pattern_image = Image(img_buffer, width=img_width, height=img_height)
 
         # Project info table
         info_data = [

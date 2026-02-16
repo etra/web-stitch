@@ -94,7 +94,7 @@ def _symbol_font_size(cell_size: int, stitch_type: str) -> int:
     defn = STITCH_TYPES.get(stitch_type)
     category = defn.get('category', '') if defn else ''
     if category in ('Three-Quarter Stitch', 'Quarter Stitch'):
-        size -= 1
+        size = 12
     return size
 
 
