@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}New Project - Step 2 - Web Stitch{% endblock %}
+{% block title %}New Project - Step 3 - Web Stitch{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/wizard.css') }}">
@@ -11,8 +11,8 @@
     <div class="wizard-card">
         <h1 class="text-center mb-4">Select Thread Vendor</h1>
 
-        {% set current_step = 2 %}
-        {% set steps = ['Setup', 'Vendor', 'Colors'] %}
+        {% set current_step = 3 %}
+        {% set steps = ['Name', 'Size', 'Vendor', 'Create'] %}
         {% include 'components/wizard_steps.html' %}
 
         <p class="text-center text-muted mb-4">Choose the thread brand you'll be using for this project</p>
@@ -39,7 +39,7 @@
 
             <div class="wizard-nav">
                 <div class="wizard-nav-left">
-                    <a href="{{ url_for('projects.new_setup') }}"
+                    <a href="{{ url_for('projects.new_size') }}"
                        class="btn btn-outline-secondary">
                         <i class="bi bi-arrow-left"></i> Back
                     </a>

@@ -76,7 +76,8 @@ class LayerImageService:
     @staticmethod
     def convert_image_to_stitches(project: Project, image_file, name: str,
                                   max_colors: int, use_existing_colors_only: bool,
-                                  target_width: int, target_height: int) -> dict:
+                                  target_width: int, target_height: int,
+                                  vendor: 'ColorVendor | None' = None) -> dict:
         """
         Upload an image and convert it to a stitch layer.
 
@@ -91,6 +92,7 @@ class LayerImageService:
             use_existing_colors_only: If True, only use project's existing colors.
             target_width: Target grid width in cells.
             target_height: Target grid height in cells.
+            vendor: Optional vendor override (used when project has no colors yet).
 
         Returns:
             dict with layer (LayerResponse-shaped) and newColors list.
@@ -113,7 +115,8 @@ class LayerImageService:
             tmp_path.unlink(missing_ok=True)
 
         return LayerImageService._process_image_to_stitches(
-            project, resized, name, max_colors, use_existing_colors_only, target_width
+            project, resized, name, max_colors, use_existing_colors_only, target_width,
+            vendor=vendor
         )
 
     @staticmethod
@@ -169,7 +172,8 @@ class LayerImageService:
     @staticmethod
     def _process_image_to_stitches(project: Project, image, name: str,
                                    max_colors: int, use_existing_colors_only: bool,
-                                   grid_width: int) -> dict:
+                                   grid_width: int,
+                                   vendor: 'ColorVendor | None' = None) -> dict:
         """
         Shared logic for converting a resized image array to stitch layer data.
 
@@ -180,6 +184,7 @@ class LayerImageService:
             max_colors: Maximum colors for quantization.
             use_existing_colors_only: If True, only use project's existing colors.
             grid_width: Grid width for cell key calculation.
+            vendor: Optional vendor override for color matching.
 
         Returns:
             dict with 'layer' and 'newColors'.
@@ -208,7 +213,8 @@ class LayerImageService:
             )
         else:
             return LayerImageService._match_vendor_colors(
-                project, quantized, raw_palette, name, grid_width, height
+                project, quantized, raw_palette, name, grid_width, height,
+                vendor=vendor
             )
 
     @staticmethod
@@ -265,12 +271,14 @@ class LayerImageService:
 
     @staticmethod
     def _match_vendor_colors(project, quantized, raw_palette, name,
-                             grid_width, grid_height):
+                             grid_width, grid_height,
+                             vendor: 'ColorVendor | None' = None):
         """Map quantized colors to vendor palette, generating new ProjectColor entries."""
         import numpy as np
 
-        # Determine vendor from project's existing colors
-        vendor = LayerImageService._determine_vendor(project)
+        # Use provided vendor or determine from project's existing colors
+        if vendor is None:
+            vendor = LayerImageService._determine_vendor(project)
 
         vendor_colors = Color.query.filter_by(vendor=vendor).all()
         if not vendor_colors:

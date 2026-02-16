@@ -39,33 +39,62 @@
 }
 
 /* =============================================================================
-   Wizard - Size Preview (Setup Step)
+   Wizard - Size Step (Two-Panel Layout)
    ============================================================================= */
 
-.size-preview-container {
+.size-panels {
     display: flex;
-    align-items: flex-start;
-    gap: 1rem;
-    margin-top: 1rem;
+    gap: 0;
+    margin-bottom: 1.5rem;
 }
 
-.size-preview-wrapper {
+.size-panel {
+    flex: 1;
+    padding: 0 1.25rem;
+}
+
+.size-panel-divider {
+    width: 1px;
+    background: var(--bs-border-color);
+    align-self: stretch;
+}
+
+.size-panel-title {
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: var(--bs-body-color);
+}
+
+.size-field {
+    margin-bottom: 0.75rem;
+}
+
+.size-field-label {
+    font-size: 0.875rem;
+    margin-bottom: 0.25rem;
+}
+
+.size-field-input {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.size-field-input .form-control {
+    max-width: 120px;
+}
+
+.size-field-unit {
+    font-size: 0.875rem;
+    color: var(--bs-secondary-color);
+    white-space: nowrap;
+}
+
+.size-preview-area {
     display: flex;
     flex-direction: column;
     align-items: center;
-}
-
-.width-input-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-}
-
-.height-input-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+    margin-top: 1rem;
 }
 
 .size-preview {
@@ -75,24 +104,31 @@
     transition: all 0.2s ease;
     min-width: 20px;
     min-height: 20px;
-    max-width: 200px;
-    max-height: 200px;
-}
-
-.size-input {
-    width: 80px;
-}
-
-.size-label {
-    font-size: 0.875rem;
-    color: var(--bs-secondary-color);
+    max-width: 140px;
+    max-height: 140px;
 }
 
 .size-display {
     text-align: center;
     margin-top: 0.5rem;
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     color: var(--bs-secondary-color);
+}
+
+@media (max-width: 576px) {
+    .size-panels {
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    .size-panel-divider {
+        width: 100%;
+        height: 1px;
+    }
+
+    .size-panel {
+        padding: 0;
+    }
 }
 
 /* =============================================================================
@@ -237,4 +273,270 @@
 .color-grid-cell.at-limit {
     opacity: 0.3;
     cursor: not-allowed;
+}
+
+/* =============================================================================
+   Wizard - Create Step (Mode Cards)
+   ============================================================================= */
+
+.creation-mode-cards {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+.creation-mode-card {
+    background: var(--bs-secondary-bg);
+    border: 2px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius-lg);
+    padding: 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.creation-mode-card:hover {
+    border-color: var(--bs-primary);
+    box-shadow: 0 2px 8px rgba(var(--bs-primary-rgb), 0.2);
+}
+
+.creation-mode-card.selected {
+    border-color: var(--bs-primary);
+    background-color: rgba(var(--bs-primary-rgb), 0.05);
+}
+
+.creation-mode-icon {
+    font-size: 2.5rem;
+    color: var(--bs-secondary-color);
+    margin-bottom: 0.75rem;
+}
+
+.creation-mode-card.selected .creation-mode-icon {
+    color: var(--bs-primary);
+}
+
+.creation-mode-name {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.creation-mode-desc {
+    font-size: 0.85rem;
+    color: var(--bs-secondary-color);
+    line-height: 1.4;
+}
+
+.image-config-summary {
+    margin-bottom: 1rem;
+}
+
+.image-config-thumb {
+    width: 160px;
+    height: 160px;
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    overflow: hidden;
+    flex-shrink: 0;
+    background: #fff;
+}
+
+.image-config-thumb img,
+.image-config-thumb canvas {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    image-rendering: pixelated;
+}
+
+/* Preview pair inside modal (colors step) */
+.image-preview-pair {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.image-preview-col {
+    flex: 1;
+    text-align: center;
+}
+
+.image-preview-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    padding: 0.5rem;
+    min-height: 120px;
+}
+
+.image-preview-canvas {
+    display: block;
+    max-width: 160px;
+    max-height: 160px;
+    image-rendering: pixelated;
+    border-radius: 2px;
+}
+
+.image-preview-label {
+    font-size: 0.8125rem;
+    color: var(--bs-secondary-color);
+    margin-top: 0.375rem;
+}
+
+/* =============================================================================
+   From-Image Wizard Modal
+   ============================================================================= */
+
+.image-wizard-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1050;
+}
+
+.image-wizard-modal {
+    background: var(--bs-secondary-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius-lg);
+    width: 500px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.image-wizard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--bs-border-color);
+    font-weight: 600;
+}
+
+.image-wizard-close {
+    background: none;
+    border: none;
+    color: var(--bs-secondary-color);
+    font-size: 1.25rem;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+
+.image-wizard-close:hover {
+    color: var(--bs-body-color);
+}
+
+.image-wizard-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.25rem;
+}
+
+.image-wizard-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--bs-border-color);
+}
+
+/* Drop zone inside modal */
+.image-drop-zone {
+    border: 2px dashed var(--bs-border-color);
+    border-radius: var(--bs-border-radius-lg);
+    padding: 2rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: var(--bs-body-bg);
+    min-height: 120px;
+}
+
+.image-drop-zone:hover,
+.image-drop-zone.active {
+    border-color: var(--bs-primary);
+    background: rgba(var(--bs-primary-rgb), 0.05);
+}
+
+.image-drop-zone-prompt {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--bs-secondary-color);
+}
+
+.image-drop-zone-selected {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+}
+
+/* Positioner inside modal */
+.image-positioner-canvas-wrap {
+    display: flex;
+    justify-content: center;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    padding: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.image-positioner-canvas-wrap canvas {
+    display: block;
+    max-width: 100%;
+    border-radius: 2px;
+}
+
+.image-positioner-controls {
+    margin-bottom: 0.5rem;
+}
+
+/* Ensure slider track is visible on all backgrounds */
+.image-positioner-controls .form-range::-webkit-slider-runnable-track {
+    background: var(--bs-border-color);
+    height: 6px;
+    border-radius: 3px;
+}
+
+.image-positioner-controls .form-range::-moz-range-track {
+    background: var(--bs-border-color);
+    height: 6px;
+    border-radius: 3px;
+}
+
+.image-wizard-body .form-range::-webkit-slider-runnable-track {
+    background: var(--bs-border-color);
+    height: 6px;
+    border-radius: 3px;
+}
+
+.image-wizard-body .form-range::-moz-range-track {
+    background: var(--bs-border-color);
+    height: 6px;
+    border-radius: 3px;
+}
+
+@media (max-width: 576px) {
+    .creation-mode-cards {
+        grid-template-columns: 1fr;
+    }
+    .image-wizard-modal {
+        width: 95%;
+        margin: 0.5rem;
+    }
 }

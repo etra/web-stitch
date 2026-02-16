@@ -257,6 +257,7 @@ class ProjectService:
         ProjectColor.query.filter_by(project_id=project.id).delete()
 
         # Save palette colors
+        # Preserve palette 'id' so cell color references stay valid
         for idx, color_data in enumerate(state_dict.get('palette', [])):
             color_record = Color.query.filter_by(
                 vendor=color_data.get('vendor'),
@@ -264,6 +265,7 @@ class ProjectService:
             ).first()
             if color_record:
                 pc = ProjectColor(
+                    id=color_data.get('id', str(uuid.uuid4())),
                     project_id=project.id,
                     color_id=color_record.id,
                     symbol=color_data.get('symbol', ''),

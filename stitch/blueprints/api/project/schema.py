@@ -232,3 +232,8 @@ class MergePaletteColorsRequest(BaseModel):
 class MergePaletteColorsResponse(BaseModel):
     """Response schema for POST /api/projects/<id>/palette/merge."""
     success: bool
+
+
+class ActionsHtmlResponse(BaseModel):
+    """Response schema for GET /api/projects/<id>/actions."""
+    html: str

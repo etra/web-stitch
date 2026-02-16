@@ -103,6 +103,7 @@ class WizardService:
         height = wizard_data.get('height')
         difficulty = wizard_data.get('difficulty')
         tag_names = wizard_data.get('tags', [])
+        is_public = wizard_data.get('is_public', False)
         selected_colors = wizard_data.get('selected_colors', [])
 
         # Create base project
@@ -114,6 +115,11 @@ class WizardService:
             height=height,
             difficulty=difficulty
         )
+
+        # Set visibility
+        if is_public:
+            from stitch.models.project import ProjectStatus
+            project.status = ProjectStatus.PUBLIC
 
         # Set project tags
         if tag_names:
@@ -139,6 +145,100 @@ class WizardService:
         # Update project state with palette via normalized save
         state = ProjectService.assemble_state(project)
         state['palette'] = palette
+        ProjectService.save_state(project, state)
+
+        from stitch.database import db
+        db.session.commit()
+
+        return project
+
+    @staticmethod
+    def create_project_from_image(user_id: str, image_file, max_colors: int) -> Project:
+        """
+        Create a project from wizard data with an uploaded image converted to stitches.
+
+        Creates the base project, then uses LayerImageService to convert the image
+        into a stitch layer with matched vendor colors.
+
+        Args:
+            user_id: User ID
+            image_file: Uploaded image file (from request.files)
+            max_colors: Maximum number of colors for conversion
+
+        Returns:
+            Created Project instance
+        """
+        from stitch.services.layer_image_service import LayerImageService
+        from stitch.models.color import ColorVendor
+
+        wizard_data = WizardService.get_wizard_data()
+
+        name = wizard_data.get('name')
+        description = wizard_data.get('description')
+        width = wizard_data.get('width')
+        height = wizard_data.get('height')
+        difficulty = wizard_data.get('difficulty')
+        tag_names = wizard_data.get('tags', [])
+        is_public = wizard_data.get('is_public', False)
+        vendor_key = wizard_data.get('vendor')
+
+        # Resolve vendor enum from wizard selection
+        vendor = None
+        if vendor_key:
+            try:
+                vendor = ColorVendor(vendor_key)
+            except ValueError:
+                pass
+
+        # Create base project (with empty state)
+        project = ProjectService.create_project(
+            user_id=user_id,
+            name=name,
+            description=description,
+            width=width,
+            height=height,
+            difficulty=difficulty
+        )
+
+        # Set visibility
+        if is_public:
+            from stitch.models.project import ProjectStatus
+            project.status = ProjectStatus.PUBLIC
+
+        if tag_names:
+            TagService.set_project_tags(project.id, tag_names)
+
+        # Convert image to stitches using the layer image service
+        result = LayerImageService.convert_image_to_stitches(
+            project, image_file, 'Image',
+            max_colors, False, width, height,
+            vendor=vendor
+        )
+
+        # Build palette from the new colors returned by the conversion
+        new_colors = result.get('newColors', [])
+        palette = []
+        for idx, color in enumerate(new_colors):
+            palette.append({
+                'id': color['id'],
+                'vendor': color.get('vendor'),
+                'code': color.get('code'),
+                'name': color.get('name'),
+                'rgbHex': color.get('rgbHex'),
+                'rgb': ColorMatcher.hex_to_rgb(color.get('rgbHex')),
+                'symbol': color.get('symbol', ProjectService._generate_symbol(idx)),
+                'sortIndex': idx,
+                'count': 0,
+            })
+
+        # Build the stitch layer from the result
+        layer_data = result.get('layer', {})
+
+        # Assemble the state and add palette + layer
+        state = ProjectService.assemble_state(project)
+        state['palette'] = palette
+        state['layers'] = [layer_data]
+        state['activeLayerId'] = layer_data.get('id')
         ProjectService.save_state(project, state)
 
         from stitch.database import db

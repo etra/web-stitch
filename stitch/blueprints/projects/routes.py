@@ -290,149 +290,150 @@ def clone(project_id):
 
 
 # =============================================================================
-# WIZARD ROUTES - Simplified Project Creation Flow (3 steps)
+# WIZARD ROUTES - Project Creation Flow (4 steps)
 # =============================================================================
 
 @bp.route('/new', methods=['GET', 'POST'])
 @login_required
-def new_setup():
-    """Step 1: Configure name, description, and size."""
+def new_name():
+    """Step 1: Project name and optional metadata."""
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
         description = request.form.get('description', '').strip() or None
-        width = request.form.get('width', type=int)
-        height = request.form.get('height', type=int)
-        # Difficulty (optional)
         difficulty = request.form.get('difficulty', type=int)
         if difficulty is not None and difficulty not in (1, 2, 3):
             difficulty = None
-
-        # Tags (optional)
         tag_names = request.form.getlist('tags')
+        is_public = request.form.get('is_public') == '1'
 
-        # Validation
         if not name:
-            flash('Project name is required.', 'danger')
-            return render_template('projects/new/setup.html')
+            user_id = session.get('user_id')
+            project_count = len(ProjectService.get_user_projects(user_id))
+            name = f'Project #{project_count + 1}'
 
-        if not width or width < 10 or width > 1000:
-            flash('Width must be between 10 and 1000 stitches.', 'danger')
-            return render_template('projects/new/setup.html')
-
-        if not height or height < 10 or height > 1000:
-            flash('Height must be between 10 and 1000 stitches.', 'danger')
-            return render_template('projects/new/setup.html')
-
-        # Initialize wizard and store data
         WizardService.init_wizard()
         WizardService.update_wizard_data({
             'name': name,
             'description': description,
-            'width': width,
-            'height': height,
             'difficulty': difficulty,
             'tags': tag_names,
+            'is_public': is_public,
+        })
+
+        return redirect(url_for('projects.new_size'))
+
+    # GET request - clear any existing wizard state
+    WizardService.clear_wizard()
+    user_id = session.get('user_id')
+    project_count = len(ProjectService.get_user_projects(user_id))
+    return render_template('projects/new/name.html',
+                           next_project_number=project_count + 1)
+
+
+@bp.route('/new/size', methods=['GET', 'POST'])
+@login_required
+def new_size():
+    """Step 2: Canvas size."""
+    if not WizardService.validate_wizard_state():
+        flash('Wizard session expired. Please start again.', 'warning')
+        return redirect(url_for('projects.new_name'))
+
+    if request.method == 'POST':
+        width = request.form.get('width', type=int)
+        height = request.form.get('height', type=int)
+
+        if not width or width < 10 or width > 1000:
+            flash('Width must be between 10 and 1000 stitches.', 'danger')
+            return render_template('projects/new/size.html')
+
+        if not height or height < 10 or height > 1000:
+            flash('Height must be between 10 and 1000 stitches.', 'danger')
+            return render_template('projects/new/size.html')
+
+        WizardService.update_wizard_data({
+            'width': width,
+            'height': height,
         })
 
         return redirect(url_for('projects.new_vendor'))
 
-    # GET request - clear any existing wizard state
-    WizardService.clear_wizard()
-    return render_template('projects/new/setup.html')
+    return render_template('projects/new/size.html')
 
 
 @bp.route('/new/vendor', methods=['GET', 'POST'])
 @login_required
 def new_vendor():
-    """Step 2: Select thread vendor."""
+    """Step 3: Select thread vendor."""
     if not WizardService.validate_wizard_state():
         flash('Wizard session expired. Please start again.', 'warning')
-        return redirect(url_for('projects.new_setup'))
+        return redirect(url_for('projects.new_name'))
 
     if request.method == 'POST':
         vendor = request.form.get('vendor', '')
 
-        # Validation using service
         if not ColorService.is_valid_vendor(vendor):
             flash('Invalid vendor selection.', 'danger')
             return render_template('projects/new/vendor.html',
                                    vendors=ColorService.get_vendors())
 
-        # Store vendor choice
         WizardService.update_wizard_data({'vendor': vendor})
 
-        return redirect(url_for('projects.new_colors'))
+        return redirect(url_for('projects.new_create'))
 
-    # GET request
     vendors = ColorService.get_vendors()
     return render_template('projects/new/vendor.html', vendors=vendors)
 
 
-@bp.route('/new/colors', methods=['GET', 'POST'])
+@bp.route('/new/create', methods=['GET', 'POST'])
 @login_required
-def new_colors():
-    """Step 3: Pick colors and create project."""
+def new_create():
+    """Step 4: Choose creation mode (empty or from image) and create project."""
     if not WizardService.validate_wizard_state():
         flash('Wizard session expired. Please start again.', 'warning')
-        return redirect(url_for('projects.new_setup'))
+        return redirect(url_for('projects.new_name'))
 
     wizard_data = WizardService.get_wizard_data()
-    vendor = wizard_data.get('vendor')
 
-    if not vendor:
+    if not wizard_data.get('vendor'):
         flash('No vendor selected.', 'danger')
         return redirect(url_for('projects.new_vendor'))
 
     user_id = session.get('user_id')
-
     max_palette_colors = current_app.config.get('MAX_PALETTE_COLORS', 32)
 
     if request.method == 'POST':
-        color_codes = request.form.getlist('color_codes')
-
-        # Enforce palette color limit
-        if len(color_codes) > max_palette_colors:
-            flash(f'Too many colors selected ({len(color_codes)}). Maximum is {max_palette_colors}.', 'danger')
-            palette = ColorService.get_colors_by_vendor(ColorVendor(vendor))
-            return render_template('projects/new/colors.html',
-                                   vendor=vendor,
-                                   palette=palette,
-                                   wizard_data=wizard_data,
-                                   max_palette_colors=max_palette_colors)
-
-        # Build selected colors list using service
-        selected_colors = []
-        for code in color_codes:
-            color = ColorService.get_color(vendor, code)
-            if color:
-                selected_colors.append(color)
-
-        # Store selected colors
-        WizardService.update_wizard_data({'selected_colors': selected_colors})
+        creation_mode = request.form.get('creation_mode', 'empty')
 
         try:
-            # Create project
-            project = WizardService.create_blank_project(user_id)
+            if creation_mode == 'image':
+                image_file = request.files.get('image')
+                max_colors = request.form.get('max_colors', type=int) or 16
 
-            # Clear wizard state
+                if not image_file or not image_file.filename:
+                    flash('No image file provided.', 'danger')
+                    return render_template('projects/new/create.html',
+                                           wizard_data=wizard_data,
+                                           max_palette_colors=max_palette_colors)
+
+                max_colors = min(max_colors, max_palette_colors)
+
+                project = WizardService.create_project_from_image(
+                    user_id, image_file, max_colors
+                )
+            else:
+                project = WizardService.create_blank_project(user_id)
+
             WizardService.clear_wizard()
-
             flash(f'Project "{project.name}" created successfully!', 'success')
             return redirect(url_for('projects.editor', project_id=project.id))
 
         except Exception as e:
+            logging.exception('Error creating project')
             flash(f'Error creating project: {str(e)}', 'danger')
-            palette = ColorService.get_colors_by_vendor(ColorVendor(vendor))
-            return render_template('projects/new/colors.html',
-                                   vendor=vendor,
-                                   palette=palette,
+            return render_template('projects/new/create.html',
                                    wizard_data=wizard_data,
                                    max_palette_colors=max_palette_colors)
 
-    # GET request
-    palette = ColorService.get_colors_by_vendor(ColorVendor(vendor))
-    return render_template('projects/new/colors.html',
-                           vendor=vendor,
-                           palette=palette,
+    return render_template('projects/new/create.html',
                            wizard_data=wizard_data,
                            max_palette_colors=max_palette_colors)

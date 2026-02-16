@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}New Project - Step 2 - Web Stitch{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/wizard.css') }}">
+<link rel="stylesheet" href="{{ url_for('projects.static', filename='projects/projects.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="wizard-container">
+    <div class="wizard-card">
+        <h1 class="text-center mb-4">Pattern Size</h1>
+
+        {% set current_step = 2 %}
+        {% set steps = ['Name', 'Size', 'Vendor', 'Create'] %}
+        {% include 'components/wizard_steps.html' %}
+
+        <form method="POST" class="wizard-form" novalidate>
+            <div class="size-panels">
+                <!-- Left: Stitches -->
+                <div class="size-panel">
+                    <h6 class="size-panel-title">Pattern Size</h6>
+                    <div class="size-field">
+                        <label for="width" class="form-label size-field-label">Width</label>
+                        <div class="size-field-input">
+                            <input type="number"
+                                   class="form-control"
+                                   id="width"
+                                   name="width"
+                                   min="10"
+                                   max="1000"
+                                   value="70"
+                                   required>
+                            <span class="size-field-unit">stitches</span>
+                        </div>
+                    </div>
+                    <div class="size-field">
+                        <label for="height" class="form-label size-field-label">Height</label>
+                        <div class="size-field-input">
+                            <input type="number"
+                                   class="form-control"
+                                   id="height"
+                                   name="height"
+                                   min="10"
+                                   max="1000"
+                                   value="70"
+                                   required>
+                            <span class="size-field-unit">stitches</span>
+                        </div>
+                    </div>
+                    <div class="size-preview-area">
+                        <div id="sizePreview" class="size-preview"></div>
+                        <div class="size-display" id="sizeDisplay">70 &times; 70 stitches</div>
+                    </div>
+                </div>
+
+                <!-- Divider -->
+                <div class="size-panel-divider"></div>
+
+                <!-- Right: Inches helper -->
+                <div class="size-panel">
+                    <h6 class="size-panel-title">Fabric Size</h6>
+                    <div class="size-field">
+                        <label for="aida" class="form-label size-field-label">Fabric</label>
+                        <select class="form-select" id="aida">
+                            <option value="11">Aida 11</option>
+                            <option value="14" selected>Aida 14</option>
+                            <option value="16">Aida 16</option>
+                            <option value="18">Aida 18</option>
+                            <option value="22">Aida 22</option>
+                            <option value="28">Aida 28</option>
+                        </select>
+                    </div>
+                    <div class="size-field">
+                        <label for="inchWidth" class="form-label size-field-label">Width</label>
+                        <div class="size-field-input">
+                            <input type="number"
+                                   class="form-control"
+                                   id="inchWidth"
+                                   min="0.5"
+                                   max="100"
+                                   step="0.1">
+                            <span class="size-field-unit">inches</span>
+                        </div>
+                    </div>
+                    <div class="size-field">
+                        <label for="inchHeight" class="form-label size-field-label">Height</label>
+                        <div class="size-field-input">
+                            <input type="number"
+                                   class="form-control"
+                                   id="inchHeight"
+                                   min="0.5"
+                                   max="100"
+                                   step="0.1">
+                            <span class="size-field-unit">inches</span>
+                        </div>
+                    </div>
+                    <div class="form-text mt-2">
+                        Changing inches updates stitches and vice versa.
+                    </div>
+                </div>
+            </div>
+
+            <div class="wizard-nav">
+                <div class="wizard-nav-left">
+                    <a href="{{ url_for('projects.new_name') }}"
+                       class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Back
+                    </a>
+                    <a href="{{ url_for('projects.list') }}"
+                       class="btn btn-outline-secondary"
+                       data-wizard-cancel>
+                        <i class="bi bi-x-lg"></i> Cancel
+                    </a>
+                </div>
+
+                <div class="wizard-nav-right">
+                    <button type="submit" class="btn btn-primary">
+                        Next <i class="bi bi-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/wizard.js') }}"></script>
+<script src="{{ url_for('projects.static', filename='projects/projects.js') }}"></script>
+<script>
+    initSizeStep();
+</script>
+{% endblock %}

@@ -5,7 +5,10 @@ from flask import current_app, jsonify, request, session
 from pydantic import ValidationError
 
 from stitch.blueprints.api import bp
+from markupsafe import Markup
+
 from stitch.blueprints.api.project.schema import (
+    ActionsHtmlResponse,
     AddPaletteColorsRequest,
     AddPaletteColorsResponse,
     ConvertToStitchesRequest,
@@ -367,4 +370,59 @@ def merge_palette_colors(project_id):
         return jsonify({'error': error_msg}), 404
 
     response = MergePaletteColorsResponse(success=True)
+    return jsonify(response.model_dump())
+
+
+def _build_actions_html(project_id):
+    """Build HTML fragment for project action buttons."""
+    back_svg = (
+        '<svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">'
+        '<path fill-rule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146'
+        'a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708'
+        'L2.707 8.5H14.5A.5.5 0 0 0 15 8z"/></svg>'
+    )
+    save_svg = (
+        '<svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">'
+        '<path d="M2 1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4.414'
+        'A1 1 0 0 0 14.707 4L12 1.293A1 1 0 0 0 11.293 1H2zm0 1h1v3a.5.5 0 0 0'
+        ' .5.5h7a.5.5 0 0 0 .5-.5V2h.293L14 4.414V14H2V2zm3 0v2.5h4V2H5zm3 7'
+        'a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm0 1a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg>'
+    )
+    print_svg = (
+        '<svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">'
+        '<path d="M2.5 8a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z"/>'
+        '<path d="M5 1a1 1 0 0 0-1 1v1H3.5A1.5 1.5 0 0 0 2 4.5v4A1.5 1.5 0 0 0'
+        ' 3.5 10H4v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2h.5A1.5 1.5 0 0 0 14 8.5'
+        'v-4A1.5 1.5 0 0 0 12.5 3H12V2a1 1 0 0 0-1-1H5zm6 1H5v1h6V2zm1 4H4v6h8'
+        'V6zM3.5 4h9a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-.5.5H12V6a1 1 0 0 0-1-1H5'
+        'a1 1 0 0 0-1 1v3H3.5a.5.5 0 0 1-.5-.5v-4a.5.5 0 0 1 .5-.5z"/></svg>'
+    )
+
+    back_url = Markup.escape('/projects/')
+    print_url = Markup.escape(f'/print/{project_id}')
+
+    return (
+        '<div class="action-buttons__buttons">'
+        f'<button class="action-buttons__btn" data-action="navigate" data-url="{back_url}" title="Back to projects">'
+        f'{back_svg}</button>'
+        f'<button class="action-buttons__btn action-buttons__btn--save" data-action="save" title="Save project">'
+        f'{save_svg}<span class="action-buttons__indicator action-buttons__indicator--hidden"></span></button>'
+        f'<button class="action-buttons__btn" data-action="navigate" data-url="{print_url}" title="Print pattern">'
+        f'{print_svg}</button>'
+        '</div>'
+    )
+
+
+@bp.get('/projects/<project_id>/actions')
+@login_required
+def get_project_actions(project_id):
+    """Get action buttons HTML for a project."""
+    user_id = session.get('user_id')
+    project = ProjectService.get_project(project_id, user_id)
+
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+
+    html = _build_actions_html(project_id)
+    response = ActionsHtmlResponse(html=html)
     return jsonify(response.model_dump())
