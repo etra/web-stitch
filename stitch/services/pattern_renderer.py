@@ -62,15 +62,16 @@ def _compute_symbol_placement(stitch_type: str):
             return (0.75, 0.75, scale)
         return (0.5, 0.5, scale)
 
-    # Three-quarter stitches: center symbol in the triangle half
+    # Three-quarter stitches: center symbol in the triangle centroid
+    # Aligned with frontend: 0.33/0.67
     if defn.get('category') == 'Three-Quarter Stitch':
-        if stitch_type == 'three-quarter-tl':    # top-left triangle
+        if stitch_type == 'three-quarter-tl':
             return (0.33, 0.33, scale)
-        if stitch_type == 'three-quarter-br':    # bottom-right triangle
+        if stitch_type == 'three-quarter-br':
             return (0.67, 0.67, scale)
-        if stitch_type == 'three-quarter-tr':    # top-right triangle
+        if stitch_type == 'three-quarter-tr':
             return (0.67, 0.33, scale)
-        if stitch_type == 'three-quarter-bl':    # bottom-left triangle
+        if stitch_type == 'three-quarter-bl':
             return (0.33, 0.67, scale)
 
     cx = (min_x + max_x) / 2
@@ -82,22 +83,19 @@ SYMBOL_PLACEMENTS = {
     st: _compute_symbol_placement(st) for st in STITCH_TYPES
 }
 
-# Font scale by category – ratio of cell_size that becomes font size.
-_SYMBOL_FONT_SCALE = {
-    'Full Cross': 0.75,           # 20px cell → 15px font
-    'Three-Quarter Stitch': 0.5,  # 20px cell → 10px font
-    'Half Stitch': 0.6,           # 20px cell → 12px font
-    'Quarter Stitch': 0.45,       # 20px cell →  9px font
-}
-_DEFAULT_FONT_SCALE = 0.75
+# Font scale – ratio of cell_size that becomes font size.
+# Same size for all stitch types; the fill polygon shape communicates stitch type.
+_SYMBOL_FONT_SCALE = 0.6
 
 
 def _symbol_font_size(cell_size: int, stitch_type: str) -> int:
-    """Compute symbol font size based on stitch category and cell size."""
+    """Compute symbol font size based on cell size."""
+    size = max(6, int(cell_size * _SYMBOL_FONT_SCALE))
     defn = STITCH_TYPES.get(stitch_type)
     category = defn.get('category', '') if defn else ''
-    scale = _SYMBOL_FONT_SCALE.get(category, _DEFAULT_FONT_SCALE)
-    return max(6, int(cell_size * scale))
+    if category in ('Three-Quarter Stitch', 'Quarter Stitch'):
+        size -= 1
+    return size
 
 
 def _snap_bbox(stitch_type: str):
@@ -195,28 +193,21 @@ class PatternRenderer:
 
     @staticmethod
     def _get_symbol_font(size: int) -> ImageFont.FreeTypeFont:
-        """Load a Unicode-capable font at the given pixel size, with caching."""
+        """Load the bundled symbol font at the given pixel size, with caching."""
         if size in PatternRenderer._font_cache:
             return PatternRenderer._font_cache[size]
 
-        font_candidates = [
-            'DejaVuSans.ttf',
-            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-            '/usr/share/fonts/TTF/DejaVuSans.ttf',
-            '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
-            '/System/Library/Fonts/Helvetica.ttc',
-            'NotoSans-Regular.ttf',
-        ]
+        import os
+        font_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            'static', 'fonts', 'NotoSansSymbols2-Regular.ttf'
+        )
 
-        for font_name in font_candidates:
-            try:
-                font = ImageFont.truetype(font_name, size)
-                PatternRenderer._font_cache[size] = font
-                return font
-            except (IOError, OSError):
-                continue
+        try:
+            font = ImageFont.truetype(font_path, size)
+        except (IOError, OSError):
+            font = ImageFont.load_default(size)
 
-        font = ImageFont.load_default(size)
         PatternRenderer._font_cache[size] = font
         return font
     """Render cross-stitch patterns to images"""
@@ -468,11 +459,29 @@ class PatternRenderer:
         """Draw a Unicode symbol at (cx, cy) within a cell using PIL.
 
         cx, cy are normalized 0..1 coordinates for the symbol center.
+        Uses the actual glyph bounding box for precise visual centering
+        rather than font baseline metrics. Draws a 1px contrasting outline
+        so symbols remain visible on any background color.
         """
         center_x = x + cx * size
         center_y = y + cy * size
 
-        draw.text((center_x, center_y), symbol, fill=color, font=font, anchor='mm')
+        # Get actual glyph bbox to compute visual center offset
+        bbox = font.getbbox(symbol, anchor='lt')
+        glyph_w = bbox[2] - bbox[0]
+        glyph_h = bbox[3] - bbox[1]
+        text_x = center_x - bbox[0] - glyph_w / 2
+        text_y = center_y - bbox[1] - glyph_h / 2
+
+        # 1px outline in contrasting color
+        outline_color = (255, 255, 255) if sum(color) < 384 else (0, 0, 0)
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                if dx == 0 and dy == 0:
+                    continue
+                draw.text((text_x + dx, text_y + dy), symbol, fill=outline_color, font=font, anchor='lt')
+
+        draw.text((text_x, text_y), symbol, fill=color, font=font, anchor='lt')
 
     @staticmethod
     def _draw_grid(image: np.ndarray, width: int, height: int,
@@ -1101,7 +1110,7 @@ class PatternRenderer:
                     cv2.line(image, (x1, y1), (x2, y2), path_rgb, line_thickness,
                              cv2.LINE_AA)
 
-        # Pass 6: Grid numbers (always)
+        # Pass 6: Grid numbers
         PatternRenderer._add_region_numbers(
             image, region_width, region_height, cell_size,
             x_start, y_start

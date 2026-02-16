@@ -24,31 +24,31 @@ STITCH_TYPES = {
         ]
     },
 
-    # ── Half Stitch ──────────────────────────────────────────────
-    'half-slash': {
-        'type': 'half-slash',
-        'name': 'Half Stitch (Slash)',
-        'category': 'Half Stitch',
-        'icon': '/',
-        'sort_order': 1,
-        'render_mode': 'path',
-        'occupancy': ['bl', 'tr'],
-        'path_data': [
-            [[0.1, 0.9], [0.9, 0.1]]
-        ]
-    },
-    'half-backslash': {
-        'type': 'half-backslash',
-        'name': 'Half Stitch (Backslash)',
-        'category': 'Half Stitch',
-        'icon': '\\',
-        'sort_order': 1,
-        'render_mode': 'path',
-        'occupancy': ['tl', 'br'],
-        'path_data': [
-            [[0.1, 0.1], [0.9, 0.9]]
-        ]
-    },
+    # ── Half Stitch (disabled) ─────────────────────────────────
+    # 'half-slash': {
+    #     'type': 'half-slash',
+    #     'name': 'Half Stitch (Slash)',
+    #     'category': 'Half Stitch',
+    #     'icon': '/',
+    #     'sort_order': 1,
+    #     'render_mode': 'path',
+    #     'occupancy': ['bl', 'tr'],
+    #     'path_data': [
+    #         [[0.1, 0.9], [0.9, 0.1]]
+    #     ]
+    # },
+    # 'half-backslash': {
+    #     'type': 'half-backslash',
+    #     'name': 'Half Stitch (Backslash)',
+    #     'category': 'Half Stitch',
+    #     'icon': '\\',
+    #     'sort_order': 1,
+    #     'render_mode': 'path',
+    #     'occupancy': ['tl', 'br'],
+    #     'path_data': [
+    #         [[0.1, 0.1], [0.9, 0.9]]
+    #     ]
+    # },
 
     # ── Quarter Stitch ──────────────────────────────────────────
     'quarter-tl': {

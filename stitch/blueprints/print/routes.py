@@ -108,7 +108,7 @@ def view(project_id):
                 page_def['y_start'],
                 page_def['x_end'],
                 page_def['y_end'],
-                cell_size=20,
+                cell_size=30,
                 show_color=True,
                 show_stitch=False,
                 show_symbol=True,
@@ -175,7 +175,7 @@ def pattern_page_image(project_id, page_num):
             page_def['y_start'],
             page_def['x_end'],
             page_def['y_end'],
-            cell_size=20,
+            cell_size=30,
             **render_mode
         )
 
