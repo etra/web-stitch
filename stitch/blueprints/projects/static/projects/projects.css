@@ -281,7 +281,7 @@
 
 .creation-mode-cards {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 1rem;
 }
 
@@ -529,6 +529,10 @@
     background: var(--bs-border-color);
     height: 6px;
     border-radius: 3px;
+}
+
+#sw-preview-img {
+    image-rendering: pixelated;
 }
 
 @media (max-width: 576px) {

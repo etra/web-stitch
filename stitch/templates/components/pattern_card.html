@@ -1,15 +1,50 @@
 {# Pattern card component
-   Parameters (via include with context):
-   - project: Project instance
-   - user_votes: dict mapping project_id → vote value (1, -1, or 0)
+Parameters (via include with context):
+- project: Project instance
+- user_votes: dict mapping project_id → vote value (1, -1, or 0)
 #}
 {% set user_vote = user_votes.get(project.id, 0) if user_votes else 0 %}
+{% set card_id = 'carousel-' ~ project.id | replace('-', '') %}
 <div class="card pattern-card h-100">
-    <a href="{{ url_for('print.view', project_id=project.id) }}">
-        <img src="{{ url_for('projects.thumbnail_large', project_id=project.id) }}"
-             class="card-img-top" alt="{{ project.name }}"
-             loading="lazy">
-    </a>
+    <div id="{{ card_id }}" class="carousel slide pattern-carousel" data-bs-ride="false">
+        <div class="carousel-inner">
+            <div class="carousel-item active">
+                <a href="{{ url_for('print.view', project_id=project.id) }}">
+                    <img src="{{ url_for('projects.thumbnail_fill', project_id=project.id) }}"
+                         class="d-block w-100" alt="{{ project.name }} - Fill"
+                         loading="lazy">
+                </a>
+            </div>
+            <div class="carousel-item">
+                <a href="{{ url_for('print.view', project_id=project.id) }}">
+                    <img data-src="{{ url_for('projects.thumbnail_large', project_id=project.id) }}"
+                         class="d-block w-100 carousel-lazy" alt="{{ project.name }} - Preview"
+                         loading="lazy">
+                </a>
+            </div>
+
+            <div class="carousel-item">
+                <a href="{{ url_for('print.view', project_id=project.id) }}">
+                    <img data-src="{{ url_for('projects.thumbnail_cross', project_id=project.id) }}"
+                         class="d-block w-100 carousel-lazy" alt="{{ project.name }} - Cross"
+                         loading="lazy">
+                </a>
+            </div>
+            <div class="carousel-item">
+                <a href="{{ url_for('print.view', project_id=project.id) }}">
+                    <img data-src="{{ url_for('projects.thumbnail_symbol', project_id=project.id) }}"
+                         class="d-block w-100 carousel-lazy" alt="{{ project.name }} - Symbol"
+                         loading="lazy">
+                </a>
+            </div>
+        </div>
+        <div class="carousel-indicators pattern-carousel-indicators">
+            <button type="button" data-bs-target="#{{ card_id }}" data-bs-slide-to="0" class="active" title="Preview"></button>
+            <button type="button" data-bs-target="#{{ card_id }}" data-bs-slide-to="1" title="Fill"></button>
+            <button type="button" data-bs-target="#{{ card_id }}" data-bs-slide-to="2" title="Cross"></button>
+            <button type="button" data-bs-target="#{{ card_id }}" data-bs-slide-to="3" title="Symbol"></button>
+        </div>
+    </div>
     <div class="card-body p-2">
         <h6 class="card-title mb-1 text-truncate">
             <a href="{{ url_for('print.view', project_id=project.id) }}" class="text-decoration-none text-body">

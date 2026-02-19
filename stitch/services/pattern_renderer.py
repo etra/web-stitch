@@ -214,7 +214,8 @@ class PatternRenderer:
 
     @staticmethod
     def render_colored_pattern(state: Dict, width: int, height: int,
-                              cell_size: int = 20) -> np.ndarray:
+                              cell_size: int = 20,
+                              solid_fill: bool = False) -> np.ndarray:
         """
         Render pattern with colored stitches using stitch definitions.
 
@@ -226,6 +227,9 @@ class PatternRenderer:
             width: Grid width
             height: Grid height
             cell_size: Size of each cell in pixels
+            solid_fill: Fill stitch shapes with solid color instead of
+                        drawing X lines / stitch paths. Uses FILL_POLYGONS
+                        for correct per-stitch-type shapes.
 
         Returns:
             RGB numpy array of the rendered pattern
@@ -269,21 +273,32 @@ class PatternRenderer:
                         continue
 
                     rgb = PatternRenderer._resolve_color(palette[palette_index])
-
-                    # Look up stitch definition for pathData
                     stitch_type = cell_data.get('stitchType', 'full')
-                    defn = STITCH_TYPES.get(stitch_type)
-                    path_data = defn.get('path_data') if defn else None
 
-                    if path_data:
-                        PatternRenderer._draw_stitch_paths(
-                            image, x * cell_size, y * cell_size,
-                            cell_size, rgb, path_data, thickness
+                    if solid_fill:
+                        poly = FILL_POLYGONS.get(stitch_type,
+                                                 [(0, 0), (1, 0), (1, 1), (0, 1)])
+                        ox, oy = x * cell_size, y * cell_size
+                        pts = np.array(
+                            [[int(ox + px * cell_size),
+                              int(oy + py * cell_size)]
+                             for px, py in poly],
+                            dtype=np.int32
                         )
+                        cv2.fillPoly(image, [pts], rgb)
                     else:
-                        PatternRenderer._draw_cross_stitch(
-                            image, x * cell_size, y * cell_size, cell_size, rgb
-                        )
+                        defn = STITCH_TYPES.get(stitch_type)
+                        path_data = defn.get('path_data') if defn else None
+
+                        if path_data:
+                            PatternRenderer._draw_stitch_paths(
+                                image, x * cell_size, y * cell_size,
+                                cell_size, rgb, path_data, thickness
+                            )
+                        else:
+                            PatternRenderer._draw_cross_stitch(
+                                image, x * cell_size, y * cell_size, cell_size, rgb
+                            )
 
             # --- Paths (linear-mode stitches) ---
             paths = layer.get('paths', [])
@@ -340,11 +355,9 @@ class PatternRenderer:
         # Draw grid numbers
         PatternRenderer._draw_grid_numbers(image, width, height, cell_size)
 
-        # Draw symbols using PIL for Unicode support
-        # Cache fonts by size to avoid re-creating for each stitch type
-        font_cache = {}
-        pil_img = Image.fromarray(image)
-        draw = ImageDraw.Draw(pil_img)
+        # Draw symbols — pre-render unique stamps, then blit via numpy
+        stamp_cache = {}
+        symbol_color = (0, 0, 0)
 
         for layer in layers:
             if not layer.get('visible', True):
@@ -375,23 +388,28 @@ class PatternRenderer:
                     cx, cy, _scale = SYMBOL_PLACEMENTS.get(stitch_type, (0.5, 0.5, 0.8))
                     font_size = _symbol_font_size(cell_size, stitch_type)
 
-                    if font_size not in font_cache:
-                        font_cache[font_size] = PatternRenderer._get_symbol_font(font_size)
-                    font = font_cache[font_size]
+                    cache_key = (symbol, symbol_color, font_size, stitch_type)
+                    if cache_key not in stamp_cache:
+                        stamp_cache[cache_key] = PatternRenderer._render_symbol_stamp(
+                            symbol, symbol_color, font_size, cell_size, cx, cy
+                        )
 
-                    PatternRenderer._draw_symbol_pil(
-                        draw, font,
-                        x * cell_size, y * cell_size, cell_size,
-                        symbol, (0, 0, 0), cx, cy
+                    stamp, ox, oy = stamp_cache[cache_key]
+                    PatternRenderer._blit_stamp(
+                        image, stamp, x * cell_size + ox, y * cell_size + oy
                     )
-
-        image[:] = np.array(pil_img)
         return image
 
     @staticmethod
     def _draw_cross_stitch(image: np.ndarray, x: int, y: int,
                           size: int, color: Tuple[int, int, int]) -> None:
-        """Draw a colored cross stitch (X)"""
+        """Draw a colored cross stitch (X). Fills solid at small sizes."""
+        # At small cell sizes, X lines with anti-aliasing appear washed out.
+        # Fill the cell solid instead for clean thumbnails/overviews.
+        if size <= 4:
+            image[y:y + size, x:x + size] = color
+            return
+
         padding = int(size * 0.15)
         thickness = max(1, size // 10)
 
@@ -482,6 +500,84 @@ class PatternRenderer:
                 draw.text((text_x + dx, text_y + dy), symbol, fill=outline_color, font=font, anchor='lt')
 
         draw.text((text_x, text_y), symbol, fill=color, font=font, anchor='lt')
+
+    @staticmethod
+    def _render_symbol_stamp(symbol: str, color: Tuple[int, int, int],
+                             font_size: int, cell_size: int,
+                             cx: float, cy: float) -> Tuple[np.ndarray, int, int]:
+        """Pre-render a symbol with outline into an RGBA numpy stamp.
+
+        Returns (stamp_rgba, offset_x, offset_y) where offsets are the
+        top-left position within the cell where the stamp should be placed.
+        """
+        font = PatternRenderer._get_symbol_font(font_size)
+        bbox = font.getbbox(symbol, anchor='lt')
+        glyph_w = bbox[2] - bbox[0]
+        glyph_h = bbox[3] - bbox[1]
+
+        # Stamp size: glyph + 2px outline margin on each side
+        margin = 2
+        stamp_w = int(glyph_w) + margin * 2
+        stamp_h = int(glyph_h) + margin * 2
+        if stamp_w < 1 or stamp_h < 1:
+            return np.zeros((1, 1, 4), dtype=np.uint8), 0, 0
+
+        stamp_img = Image.new('RGBA', (stamp_w, stamp_h), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(stamp_img)
+
+        # Draw position within stamp: margin offset minus glyph origin
+        text_x = margin - bbox[0]
+        text_y = margin - bbox[1]
+
+        # 1px outline in contrasting color
+        outline_color = (255, 255, 255) if sum(color) < 384 else (0, 0, 0)
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                if dx == 0 and dy == 0:
+                    continue
+                draw.text((text_x + dx, text_y + dy), symbol,
+                          fill=(*outline_color, 255), font=font, anchor='lt')
+
+        draw.text((text_x, text_y), symbol,
+                  fill=(*color, 255), font=font, anchor='lt')
+
+        stamp_arr = np.array(stamp_img)
+
+        # Calculate where to place the stamp within the cell
+        center_x = cx * cell_size
+        center_y = cy * cell_size
+        offset_x = int(center_x - glyph_w / 2 - margin)
+        offset_y = int(center_y - glyph_h / 2 - margin)
+
+        return stamp_arr, offset_x, offset_y
+
+    @staticmethod
+    def _blit_stamp(image: np.ndarray, stamp: np.ndarray,
+                    x: int, y: int) -> None:
+        """Blit an RGBA stamp onto an RGB image at (x, y).
+
+        Uses fast boolean masking since text stamps have binary alpha
+        (fully opaque or fully transparent). No float math needed.
+        """
+        img_h, img_w = image.shape[:2]
+        st_h, st_w = stamp.shape[:2]
+
+        # Clip to image bounds
+        src_x0 = max(0, -x)
+        src_y0 = max(0, -y)
+        dst_x0 = max(0, x)
+        dst_y0 = max(0, y)
+        dst_x1 = min(img_w, x + st_w)
+        dst_y1 = min(img_h, y + st_h)
+        src_x1 = src_x0 + (dst_x1 - dst_x0)
+        src_y1 = src_y0 + (dst_y1 - dst_y0)
+
+        if dst_x1 <= dst_x0 or dst_y1 <= dst_y0:
+            return
+
+        region = stamp[src_y0:src_y1, src_x0:src_x1]
+        mask = region[:, :, 3] > 0
+        image[dst_y0:dst_y1, dst_x0:dst_x1][mask] = region[:, :, :3][mask]
 
     @staticmethod
     def _draw_grid(image: np.ndarray, width: int, height: int,
@@ -887,7 +983,8 @@ class PatternRenderer:
                            show_color: bool = False,
                            show_stitch: bool = False,
                            show_symbol: bool = True,
-                           show_line: bool = True) -> np.ndarray:
+                           show_line: bool = True,
+                           stamp_cache: dict = None) -> np.ndarray:
         """
         Render a specific region of the pattern with configurable display options.
 
@@ -906,6 +1003,9 @@ class PatternRenderer:
             show_stitch: Draw stitch path shapes in cells
             show_symbol: Draw text symbols in cells
             show_line: Draw linear-mode stitch paths
+            stamp_cache: Optional shared dict for pre-rendered symbol stamps.
+                         Pass the same dict across multiple calls to avoid
+                         redundant PIL text rendering.
 
         Returns:
             RGB numpy array of the rendered pattern region
@@ -1020,11 +1120,10 @@ class PatternRenderer:
                                 image, rel_x, rel_y, cell_size, stitch_color
                             )
 
-        # Pass 4: Symbols (PIL for Unicode support)
+        # Pass 4: Symbols — pre-render unique stamps, then blit via numpy
         if show_symbol:
-            font_cache = {}
-            pil_img = Image.fromarray(image)
-            draw = ImageDraw.Draw(pil_img)
+            if stamp_cache is None:
+                stamp_cache = {}
 
             for layer in layers:
                 if not layer.get('visible', True):
@@ -1059,17 +1158,14 @@ class PatternRenderer:
                         cx, cy, _scale = SYMBOL_PLACEMENTS.get(stitch_type, (0.5, 0.5, 0.8))
                         font_size = _symbol_font_size(cell_size, stitch_type)
 
-                        if font_size not in font_cache:
-                            font_cache[font_size] = PatternRenderer._get_symbol_font(font_size)
-                        font = font_cache[font_size]
+                        cache_key = (symbol, symbol_color, font_size, stitch_type)
+                        if cache_key not in stamp_cache:
+                            stamp_cache[cache_key] = PatternRenderer._render_symbol_stamp(
+                                symbol, symbol_color, font_size, cell_size, cx, cy
+                            )
 
-                        PatternRenderer._draw_symbol_pil(
-                            draw, font,
-                            rel_x, rel_y, cell_size, symbol, symbol_color,
-                            cx, cy
-                        )
-
-            image[:] = np.array(pil_img)
+                        stamp, ox, oy = stamp_cache[cache_key]
+                        PatternRenderer._blit_stamp(image, stamp, rel_x + ox, rel_y + oy)
 
         # Pass 5: Lines (linear-mode stitch paths)
         for layer in layers:
@@ -1256,11 +1352,10 @@ class PatternRenderer:
         # Calculate cell size so the pattern fits inside the canvas
         cell_size = max(1, min(canvas_width // width, canvas_height // height))
 
-        # Render the pattern at that cell size
+        # Render the pattern at that cell size (no grid for clean thumbnail)
         pattern = PatternRenderer.render_colored_pattern(
             state, width, height, cell_size
         )
-        PatternRenderer._draw_grid(pattern, width, height, cell_size)
 
         # Build canvas filled with cloth color
         bg_rgb = PatternRenderer._hex_to_rgb_tuple(

@@ -420,6 +420,7 @@ function initCreateStep(config) {
     // DOM elements - mode cards
     const modeEmpty = document.getElementById('mode-empty');
     const modeImage = document.getElementById('mode-image');
+    const modeSmartImage = document.getElementById('mode-smart-image');
     const creationModeInput = document.getElementById('creation-mode-input');
     const maxColorsInput = document.getElementById('max-colors-input');
     const imageConfigSummary = document.getElementById('image-config-summary');
@@ -429,7 +430,41 @@ function initCreateStep(config) {
     const createForm = document.getElementById('create-form');
     const createBtn = document.getElementById('create-btn');
 
-    // DOM elements - modal
+    // DOM elements - smart image modal
+    const swOverlay = document.getElementById('smart-wizard-overlay');
+    const swTitle = document.getElementById('smart-wizard-title');
+    const swCloseBtn = document.getElementById('smart-wizard-close');
+    const swStepUpload = document.getElementById('sw-step-upload');
+    const swStepPosition = document.getElementById('sw-step-position');
+    const swStepPreview = document.getElementById('sw-step-preview');
+    const swLoading = document.getElementById('sw-loading');
+    const swResult = document.getElementById('sw-result');
+    const swPreviewImg = document.getElementById('sw-preview-img');
+    const swColorCount = document.getElementById('sw-color-count');
+    const swCellCount = document.getElementById('sw-cell-count');
+    const swMaxColors = document.getElementById('sw-max-colors');
+    const swMaxColorsLabel = document.getElementById('sw-max-colors-label');
+    const swBackBtn = document.getElementById('sw-back-btn');
+    const swRefreshBtn = document.getElementById('sw-refresh-btn');
+    const swNextBtn = document.getElementById('sw-next-btn');
+    const swDropZone = document.getElementById('sw-drop-zone');
+    const swFileInput = document.getElementById('sw-file-input');
+    const swDropPrompt = document.getElementById('sw-drop-prompt');
+    const swDropSelected = document.getElementById('sw-drop-selected');
+    const swDropFilename = document.getElementById('sw-drop-filename');
+    const swEdgeDetail = document.getElementById('sw-edge-detail');
+    const swDespeckle = document.getElementById('sw-despeckle');
+    const swBackstitch = document.getElementById('sw-backstitch');
+    const swPosCanvas = document.getElementById('sw-positioner-canvas');
+    const swPosScaleSlider = document.getElementById('sw-positioner-scale');
+    const swPosScaleLabel = document.getElementById('sw-positioner-scale-label');
+    const smartConfigSummary = document.getElementById('smart-config-summary');
+    const smartConfigPreview = document.getElementById('smart-config-preview');
+    const smartFilename = document.getElementById('smart-filename');
+    const smartColorsSummary = document.getElementById('smart-colors-summary');
+    const smartReconfigureBtn = document.getElementById('smart-reconfigure-btn');
+
+    // DOM elements - from-image modal
     const overlay = document.getElementById('image-wizard-overlay');
     const modalTitle = document.getElementById('image-wizard-title');
     const closeBtn = document.getElementById('image-wizard-close');
@@ -453,7 +488,7 @@ function initCreateStep(config) {
     const iwPreviewQuantized = document.getElementById('iw-preview-quantized');
     const configPreviewImg = document.getElementById('image-config-preview');
 
-    // State
+    // State - from-image
     let selectedFile = null;
     let composedBlob = null;
     let composedImageData = null; // ImageData from composed canvas for quantization
@@ -466,6 +501,21 @@ function initCreateStep(config) {
 
     const MAX_CANVAS_DISPLAY = 380;
 
+    // State - smart image modal
+    let swFile = null;
+    let swImageEl = null; // loaded Image element for positioner
+    let swComposedBlob = null; // composed PNG blob at grid dimensions
+    let swStep = 'upload'; // 'upload' | 'position' | 'preview'
+    let swPreviewData = null; // base64 preview from server
+    let swConfirmedMaxColors = 32;
+    let swConfirmedEdgeDetail = 'medium';
+    let swConfirmedDespeckle = 'light';
+    let swConfirmedBackstitch = true;
+
+    // Smart image positioner state
+    let swImgX = 0, swImgY = 0, swImgScale = 1.0;
+    let swIsDragging = false, swDragStartX = 0, swDragStartY = 0, swDragStartImgX = 0, swDragStartImgY = 0;
+
     // ---------------------------------------------------------------
     // Mode card selection
     // ---------------------------------------------------------------
@@ -474,10 +524,16 @@ function initCreateStep(config) {
         creationModeInput.value = mode;
         modeEmpty.classList.toggle('selected', mode === 'empty');
         modeImage.classList.toggle('selected', mode === 'image');
+        if (modeSmartImage) modeSmartImage.classList.toggle('selected', mode === 'smart_image');
 
         if (mode === 'empty') {
             imageConfigSummary.style.display = 'none';
+            smartConfigSummary.style.display = 'none';
             composedBlob = null;
+        } else if (mode === 'image') {
+            smartConfigSummary.style.display = 'none';
+        } else if (mode === 'smart_image') {
+            imageConfigSummary.style.display = 'none';
         }
     }
 
@@ -486,13 +542,377 @@ function initCreateStep(config) {
     });
 
     modeImage.addEventListener('click', function() {
-        // Open the image wizard modal
         openModal();
     });
 
     if (reconfigureBtn) {
         reconfigureBtn.addEventListener('click', function() {
             openModal();
+        });
+    }
+
+    // Smart Image mode card → open smart modal
+    if (modeSmartImage) {
+        modeSmartImage.addEventListener('click', function() {
+            openSmartModal();
+        });
+    }
+
+    // Smart Image "Change Settings" button
+    if (smartReconfigureBtn) {
+        smartReconfigureBtn.addEventListener('click', function() {
+            openSmartModal();
+        });
+    }
+
+    // ---------------------------------------------------------------
+    // Smart Image Modal
+    // ---------------------------------------------------------------
+
+    function openSmartModal() {
+        swOverlay.style.display = 'flex';
+        showSmartStep('upload');
+    }
+
+    function closeSmartModal() {
+        swOverlay.style.display = 'none';
+    }
+
+    swCloseBtn.addEventListener('click', closeSmartModal);
+    swOverlay.addEventListener('click', function(e) {
+        if (e.target === swOverlay) closeSmartModal();
+    });
+
+    function showSmartStep(step) {
+        swStep = step;
+        swStepUpload.style.display = step === 'upload' ? '' : 'none';
+        swStepPosition.style.display = step === 'position' ? '' : 'none';
+        swStepPreview.style.display = step === 'preview' ? '' : 'none';
+        swBackBtn.style.display = step === 'upload' ? 'none' : '';
+        swRefreshBtn.style.display = step === 'preview' ? '' : 'none';
+
+        if (step === 'upload') {
+            swTitle.textContent = 'Upload Image';
+            swNextBtn.innerHTML = 'Next <i class="bi bi-arrow-right"></i>';
+            swNextBtn.disabled = !swFile;
+        } else if (step === 'position') {
+            swTitle.textContent = 'Position Image';
+            swNextBtn.innerHTML = 'Next <i class="bi bi-arrow-right"></i>';
+            swNextBtn.disabled = false;
+            initSwPositioner();
+        } else if (step === 'preview') {
+            swTitle.textContent = 'Preview';
+            swNextBtn.innerHTML = '<i class="bi bi-check-lg"></i> Confirm';
+            swNextBtn.disabled = true;
+            composeSmartImage();
+            fetchSmartPreview(swComposedBlob, parseInt(swMaxColors.value) || 32);
+        }
+    }
+
+    swNextBtn.addEventListener('click', function() {
+        if (swStep === 'upload') {
+            showSmartStep('position');
+        } else if (swStep === 'position') {
+            showSmartStep('preview');
+        } else if (swStep === 'preview') {
+            // Confirm — store settings and close modal
+            swConfirmedMaxColors = parseInt(swMaxColors.value) || 32;
+            swConfirmedEdgeDetail = swEdgeDetail.value;
+            swConfirmedDespeckle = swDespeckle.value;
+            swConfirmedBackstitch = swBackstitch.checked;
+            selectMode('smart_image');
+            smartConfigSummary.style.display = '';
+            smartConfigPreview.src = swPreviewData || '';
+            smartFilename.textContent = swFile ? swFile.name : '—';
+            smartColorsSummary.textContent = swColorCount.textContent;
+            closeSmartModal();
+        }
+    });
+
+    swBackBtn.addEventListener('click', function() {
+        if (swStep === 'position') {
+            showSmartStep('upload');
+        } else if (swStep === 'preview') {
+            showSmartStep('position');
+        }
+    });
+
+    // Smart modal drop zone
+    swDropZone.addEventListener('click', function() {
+        swFileInput.click();
+    });
+
+    swFileInput.addEventListener('change', function() {
+        var file = swFileInput.files[0];
+        if (file) handleSwFileSelected(file);
+    });
+
+    swDropZone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'copy';
+        swDropZone.classList.add('active');
+    });
+
+    swDropZone.addEventListener('dragenter', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        swDropZone.classList.add('active');
+    });
+
+    swDropZone.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        swDropZone.classList.remove('active');
+    });
+
+    swDropZone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        swDropZone.classList.remove('active');
+        var file = e.dataTransfer.files[0];
+        if (file) handleSwFileSelected(file);
+    });
+
+    function handleSwFileSelected(file) {
+        swFile = file;
+        swDropPrompt.style.display = 'none';
+        swDropSelected.style.display = 'flex';
+        swDropFilename.textContent = file.name;
+        swNextBtn.disabled = false;
+
+        // Load image element for positioner
+        var objectUrl = URL.createObjectURL(file);
+        var img = new Image();
+        img.onload = function() {
+            URL.revokeObjectURL(objectUrl);
+            swImageEl = img;
+            // Compute default fit and center
+            var imgAspect = img.naturalWidth / img.naturalHeight;
+            var gridAspect = gridWidth / gridHeight;
+            if (imgAspect > gridAspect) {
+                swImgX = 0;
+                swImgY = (gridHeight - gridWidth / imgAspect) / 2;
+            } else {
+                swImgX = (gridWidth - gridHeight * imgAspect) / 2;
+                swImgY = 0;
+            }
+            swImgScale = 1.0;
+            swPosScaleSlider.value = '1.0';
+            swPosScaleLabel.textContent = '100%';
+        };
+        img.src = objectUrl;
+    }
+
+    // ---------------------------------------------------------------
+    // Smart Image Positioner
+    // ---------------------------------------------------------------
+
+    function swGetDisplayScale() {
+        return MAX_CANVAS_DISPLAY / Math.max(gridWidth, gridHeight);
+    }
+
+    function swGetFitSize() {
+        if (!swImageEl) return { w: 0, h: 0 };
+        var imgAspect = swImageEl.naturalWidth / swImageEl.naturalHeight;
+        var gridAspect = gridWidth / gridHeight;
+        if (imgAspect > gridAspect) {
+            return { w: gridWidth, h: gridWidth / imgAspect };
+        } else {
+            return { w: gridHeight * imgAspect, h: gridHeight };
+        }
+    }
+
+    function initSwPositioner() {
+        if (!swImageEl) return;
+        drawSwPositionerCanvas();
+    }
+
+    function drawSwPositionerCanvas() {
+        var ds = swGetDisplayScale();
+        var cw = Math.round(gridWidth * ds);
+        var ch = Math.round(gridHeight * ds);
+        swPosCanvas.width = cw;
+        swPosCanvas.height = ch;
+        swPosCanvas.style.maxWidth = cw + 'px';
+
+        var ctx = swPosCanvas.getContext('2d');
+        if (!ctx) return;
+
+        // Checkerboard background
+        var checkSize = Math.max(4, Math.round(ds / 2));
+        for (var y = 0; y < ch; y += checkSize) {
+            for (var x = 0; x < cw; x += checkSize) {
+                ctx.fillStyle = ((x / checkSize + y / checkSize) % 2 === 0) ? '#3a3a3a' : '#2a2a2a';
+                ctx.fillRect(x, y, checkSize, checkSize);
+            }
+        }
+
+        // Draw image
+        if (swImageEl) {
+            var fit = swGetFitSize();
+            var drawW = fit.w * swImgScale;
+            var drawH = fit.h * swImgScale;
+            ctx.drawImage(swImageEl, swImgX * ds, swImgY * ds, drawW * ds, drawH * ds);
+        }
+
+        // Grid border
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0.5, 0.5, cw - 1, ch - 1);
+
+        // Crosshair lines
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.lineWidth = 1;
+        var midX = Math.round(cw / 2) + 0.5;
+        var midY = Math.round(ch / 2) + 0.5;
+        ctx.beginPath();
+        ctx.moveTo(midX, 0);
+        ctx.lineTo(midX, ch);
+        ctx.moveTo(0, midY);
+        ctx.lineTo(cw, midY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    // Canvas mouse drag
+    swPosCanvas.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        swIsDragging = true;
+        swDragStartX = e.clientX;
+        swDragStartY = e.clientY;
+        swDragStartImgX = swImgX;
+        swDragStartImgY = swImgY;
+        swPosCanvas.style.cursor = 'grabbing';
+    });
+
+    document.addEventListener('mousemove', function(e) {
+        if (!swIsDragging) return;
+        var ds = swGetDisplayScale();
+        swImgX = swDragStartImgX + (e.clientX - swDragStartX) / ds;
+        swImgY = swDragStartImgY + (e.clientY - swDragStartY) / ds;
+        drawSwPositionerCanvas();
+    });
+
+    document.addEventListener('mouseup', function() {
+        if (swIsDragging) {
+            swIsDragging = false;
+            swPosCanvas.style.cursor = 'grab';
+        }
+    });
+
+    swPosCanvas.style.cursor = 'grab';
+
+    // Scale slider
+    swPosScaleSlider.addEventListener('input', function() {
+        var newScale = parseFloat(swPosScaleSlider.value);
+        if (!swImageEl) return;
+
+        // Re-center around current image center
+        var fit = swGetFitSize();
+        var oldW = fit.w * swImgScale;
+        var oldH = fit.h * swImgScale;
+        var cx = swImgX + oldW / 2;
+        var cy = swImgY + oldH / 2;
+
+        var newW = fit.w * newScale;
+        var newH = fit.h * newScale;
+        swImgX = cx - newW / 2;
+        swImgY = cy - newH / 2;
+        swImgScale = newScale;
+
+        swPosScaleLabel.textContent = Math.round(newScale * 100) + '%';
+        drawSwPositionerCanvas();
+    });
+
+    // ---------------------------------------------------------------
+    // Compose smart image (grid-size canvas → blob)
+    // ---------------------------------------------------------------
+
+    function dataUrlToBlobSw(dataUrl) {
+        var parts = dataUrl.split(',');
+        var mime = parts[0].match(/:(.*?);/)[1];
+        var raw = atob(parts[1]);
+        var arr = new Uint8Array(raw.length);
+        for (var i = 0; i < raw.length; i++) {
+            arr[i] = raw.charCodeAt(i);
+        }
+        return new Blob([arr], { type: mime });
+    }
+
+    function composeSmartImage() {
+        var canvas = document.createElement('canvas');
+        canvas.width = gridWidth;
+        canvas.height = gridHeight;
+        var ctx = canvas.getContext('2d');
+        if (!ctx || !swImageEl) return;
+
+        // White background
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, gridWidth, gridHeight);
+
+        var fit = swGetFitSize();
+        var drawW = fit.w * swImgScale;
+        var drawH = fit.h * swImgScale;
+        ctx.drawImage(swImageEl, swImgX, swImgY, drawW, drawH);
+
+        var dataUrl = canvas.toDataURL('image/png');
+        swComposedBlob = dataUrlToBlobSw(dataUrl);
+    }
+
+    // Smart modal slider → update label only
+    swMaxColors.addEventListener('input', function() {
+        swMaxColorsLabel.textContent = swMaxColors.value;
+    });
+
+    // Refresh button → re-compose and re-fetch preview
+    swRefreshBtn.addEventListener('click', function() {
+        composeSmartImage();
+        fetchSmartPreview(swComposedBlob, parseInt(swMaxColors.value) || 32);
+    });
+
+    function fetchSmartPreview(blob, maxColors) {
+        if (!blob) return;
+        swLoading.style.display = '';
+        swResult.style.display = 'none';
+        swNextBtn.disabled = true;
+
+        var fd = new FormData();
+        fd.append('image', blob, 'composed.png');
+        fd.append('max_colors', maxColors);
+        fd.append('edge_detail', swEdgeDetail.value);
+        fd.append('despeckle', swDespeckle.value);
+        fd.append('backstitch', swBackstitch.checked ? 'true' : 'false');
+
+        fetch('/projects/new/smart-preview', {
+            method: 'POST',
+            body: fd
+        })
+        .then(function(resp) { return resp.json(); })
+        .then(function(data) {
+            if (data.error) {
+                swLoading.style.display = 'none';
+                swResult.style.display = '';
+                swPreviewImg.style.display = 'none';
+                swColorCount.textContent = '—';
+                swCellCount.textContent = '—';
+                alert(data.error);
+                return;
+            }
+            swPreviewData = data.preview;
+            swPreviewImg.src = data.preview;
+            swPreviewImg.style.display = '';
+            swColorCount.textContent = data.colorCount;
+            swCellCount.textContent = data.cellCount;
+            swLoading.style.display = 'none';
+            swResult.style.display = '';
+            swNextBtn.disabled = false;
+        })
+        .catch(function() {
+            swLoading.style.display = 'none';
+            swResult.style.display = '';
+            alert('An error occurred while generating the preview.');
         });
     }
 
@@ -948,33 +1368,68 @@ function initCreateStep(config) {
     // ---------------------------------------------------------------
 
     createForm.addEventListener('submit', function(e) {
-        if (creationModeInput.value !== 'image') return; // let normal submit proceed
+        var mode = creationModeInput.value;
 
-        e.preventDefault();
+        if (mode === 'image') {
+            e.preventDefault();
 
-        if (!composedBlob) {
-            alert('No image has been configured. Please select an image first.');
-            return;
+            if (!composedBlob) {
+                alert('No image has been configured. Please select an image first.');
+                return;
+            }
+
+            createBtn.disabled = true;
+            createBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Creating...';
+
+            var fd = new FormData(createForm);
+            fd.set('creation_mode', 'image');
+            fd.set('max_colors', maxColorsInput.value);
+            fd.append('image', composedBlob, 'composed.png');
+
+            fetch(createForm.action || window.location.href, {
+                method: 'POST',
+                body: fd,
+                redirect: 'follow'
+            }).then(function(resp) {
+                window.location.href = resp.url;
+            }).catch(function() {
+                createBtn.disabled = false;
+                createBtn.innerHTML = '<i class="bi bi-check-lg"></i> Create Project';
+                alert('An error occurred. Please try again.');
+            });
+        } else if (mode === 'smart_image') {
+            e.preventDefault();
+
+            if (!swComposedBlob) {
+                alert('Please select and position an image first.');
+                return;
+            }
+
+            createBtn.disabled = true;
+            createBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Creating...';
+
+            var mc = Math.max(2, Math.min(swConfirmedMaxColors, maxPaletteColors));
+
+            var fd = new FormData(createForm);
+            fd.set('creation_mode', 'smart_image');
+            fd.set('max_colors', mc);
+            fd.set('edge_detail', swConfirmedEdgeDetail);
+            fd.set('despeckle', swConfirmedDespeckle);
+            fd.set('backstitch', swConfirmedBackstitch ? 'true' : 'false');
+            fd.append('image', swComposedBlob, 'composed.png');
+
+            fetch(createForm.action || window.location.href, {
+                method: 'POST',
+                body: fd,
+                redirect: 'follow'
+            }).then(function(resp) {
+                window.location.href = resp.url;
+            }).catch(function() {
+                createBtn.disabled = false;
+                createBtn.innerHTML = '<i class="bi bi-check-lg"></i> Create Project';
+                alert('An error occurred. Please try again.');
+            });
         }
-
-        createBtn.disabled = true;
-        createBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Creating...';
-
-        var fd = new FormData(createForm);
-        fd.set('creation_mode', 'image');
-        fd.set('max_colors', maxColorsInput.value);
-        fd.append('image', composedBlob, 'composed.png');
-
-        fetch(createForm.action || window.location.href, {
-            method: 'POST',
-            body: fd,
-            redirect: 'follow'
-        }).then(function(resp) {
-            window.location.href = resp.url;
-        }).catch(function() {
-            createBtn.disabled = false;
-            createBtn.innerHTML = '<i class="bi bi-check-lg"></i> Create Project';
-            alert('An error occurred. Please try again.');
-        });
+        // else: empty mode — let normal form submit proceed
     });
 }

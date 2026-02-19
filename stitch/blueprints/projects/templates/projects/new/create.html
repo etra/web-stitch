@@ -49,6 +49,39 @@
                 <div class="creation-mode-name">From Image</div>
                 <div class="creation-mode-desc">Upload an image and convert it to cross-stitch stitches</div>
             </div>
+
+            <div class="creation-mode-card" id="mode-smart-image" data-mode="smart_image">
+                <div class="creation-mode-icon">
+                    <i class="bi bi-stars"></i>
+                </div>
+                <div class="creation-mode-name">Smart Image</div>
+                <div class="creation-mode-desc">AI-enhanced conversion — best color matching, edge detail, and sewability</div>
+                <span class="badge bg-info mt-2">Beta</span>
+            </div>
+        </div>
+
+        <!-- Smart Image configuration summary (shown after modal confirm) -->
+        <div id="smart-config-summary" style="display: none;">
+            <div class="d-flex gap-3 align-items-start">
+                <div class="image-config-thumb">
+                    <img id="smart-config-preview" class="img-fluid" style="max-height: 80px;" alt="Preview">
+                </div>
+                <div class="flex-grow-1">
+                    <div class="summary-card mb-0">
+                        <div class="summary-row">
+                            <span class="summary-label">Image:</span>
+                            <span class="summary-value" id="smart-filename">—</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="summary-label">Colors:</span>
+                            <span class="summary-value" id="smart-colors-summary">—</span>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="smart-reconfigure-btn">
+                        <i class="bi bi-pencil"></i> Change Settings
+                    </button>
+                </div>
+            </div>
         </div>
 
         <!-- Image configuration summary (shown when image is configured) -->
@@ -179,6 +212,108 @@
                 <i class="bi bi-arrow-left"></i> Back
             </button>
             <button type="button" class="btn btn-primary" id="iw-next-btn" disabled>
+                Next <i class="bi bi-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+</div>
+<!-- Smart Image Modal -->
+<div class="image-wizard-overlay" id="smart-wizard-overlay" style="display: none;">
+    <div class="image-wizard-modal">
+        <div class="image-wizard-header">
+            <span id="smart-wizard-title">Upload Image</span>
+            <button type="button" class="image-wizard-close" id="smart-wizard-close">&times;</button>
+        </div>
+        <div class="image-wizard-body">
+            <!-- Step 1: Upload -->
+            <div id="sw-step-upload">
+                <p class="text-muted mb-3">Upload an image for smart conversion.</p>
+                <div class="image-drop-zone" id="sw-drop-zone">
+                    <input type="file" accept="image/*" id="sw-file-input" style="display: none;">
+                    <div class="image-drop-zone-prompt" id="sw-drop-prompt">
+                        <i class="bi bi-cloud-arrow-up" style="font-size: 2rem;"></i>
+                        <span>Drop image here or click to browse</span>
+                    </div>
+                    <div class="image-drop-zone-selected" id="sw-drop-selected" style="display: none;">
+                        <i class="bi bi-image"></i>
+                        <span id="sw-drop-filename"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Position -->
+            <div id="sw-step-position" style="display: none;">
+                <div class="image-positioner-canvas-wrap">
+                    <canvas id="sw-positioner-canvas"></canvas>
+                </div>
+                <div class="image-positioner-controls">
+                    <label class="form-label mb-1">
+                        <small>Scale: <span id="sw-positioner-scale-label">100%</span></small>
+                    </label>
+                    <input type="range" class="form-range" id="sw-positioner-scale"
+                           min="0.1" max="3.0" step="0.05" value="1.0">
+                </div>
+                <p class="text-muted text-center mb-0"><small>Drag image to reposition</small></p>
+            </div>
+
+            <!-- Step 3: Preview + Settings -->
+            <div id="sw-step-preview" style="display: none;">
+                <div id="sw-loading" class="text-center py-4">
+                    <div class="spinner-border"></div>
+                    <p class="mt-2 text-muted">Processing image...</p>
+                </div>
+                <div id="sw-result" style="display: none;">
+                    <div class="text-center mb-3">
+                        <img id="sw-preview-img" class="img-fluid border rounded"
+                             style="max-height: 250px;" alt="Preview">
+                    </div>
+                    <div class="d-flex justify-content-center gap-3 mb-3 small text-muted">
+                        <span><strong id="sw-color-count">—</strong> colors</span>
+                        <span><strong id="sw-cell-count">—</strong> stitches</span>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">
+                            Maximum Colors: <span id="sw-max-colors-label" class="fw-semibold">32</span>
+                        </label>
+                        <input type="range" class="form-range" id="sw-max-colors"
+                               min="2" max="{{ max_palette_colors }}" value="32">
+                    </div>
+                    <div class="row g-3">
+                        <div class="col">
+                            <label class="form-label small">Edge Detail</label>
+                            <select class="form-select form-select-sm" id="sw-edge-detail">
+                                <option value="low">Low</option>
+                                <option value="medium" selected>Medium</option>
+                                <option value="high">High</option>
+                            </select>
+                        </div>
+                        <div class="col">
+                            <label class="form-label small">Despeckling</label>
+                            <select class="form-select form-select-sm" id="sw-despeckle">
+                                <option value="off">Off</option>
+                                <option value="light" selected>Light</option>
+                                <option value="heavy">Heavy</option>
+                            </select>
+                        </div>
+                        <div class="col">
+                            <label class="form-label small">Backstitch</label>
+                            <div class="form-check form-switch mt-1">
+                                <input class="form-check-input" type="checkbox" id="sw-backstitch" checked>
+                                <label class="form-check-label small" for="sw-backstitch">Enabled</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="image-wizard-footer">
+            <button type="button" class="btn btn-outline-secondary" id="sw-back-btn" style="display: none;">
+                <i class="bi bi-arrow-left"></i> Back
+            </button>
+            <button type="button" class="btn btn-outline-primary" id="sw-refresh-btn" style="display: none;">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+            <button type="button" class="btn btn-primary" id="sw-next-btn" disabled>
                 Next <i class="bi bi-arrow-right"></i>
             </button>
         </div>

@@ -5,7 +5,10 @@ Uses ReportLab to generate printable PDF documents with pattern overview,
 color legend, and paginated symbol charts.
 """
 import io
+import logging
 import os
+import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Tuple
 from datetime import datetime
 
@@ -21,34 +24,80 @@ from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
+from flask import current_app
+
 from stitch.services.pattern_renderer import PatternRenderer
 from stitch.services.project_service import ProjectService
 
 
-def _register_unicode_font() -> str:
-    """Register a Unicode-capable TrueType font with ReportLab.
+def _register_unicode_fonts() -> tuple:
+    """Register Unicode-capable TrueType fonts (regular + bold) with ReportLab.
 
-    Returns the registered font name, or 'Helvetica' as fallback.
+    Returns (regular_name, bold_name) tuple. Falls back to Helvetica.
     """
-    font_candidates = [
-        ('DejaVuSans', 'DejaVuSans.ttf'),
-        ('DejaVuSans', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'),
-        ('DejaVuSans', '/usr/share/fonts/TTF/DejaVuSans.ttf'),
-        ('ArialUnicode', '/System/Library/Fonts/Supplemental/Arial Unicode.ttf'),
-        ('NotoSans', 'NotoSans-Regular.ttf'),
+    from reportlab.pdfbase.pdfmetrics import registerFontFamily
+
+    font_families = [
+        {
+            'name': 'DejaVuSans',
+            'regular': ['DejaVuSans.ttf',
+                        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+                        '/usr/share/fonts/TTF/DejaVuSans.ttf'],
+            'bold': ['DejaVuSans-Bold.ttf',
+                     '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+                     '/usr/share/fonts/TTF/DejaVuSans-Bold.ttf'],
+        },
+        {
+            'name': 'ArialUnicode',
+            'regular': ['/System/Library/Fonts/Supplemental/Arial Unicode.ttf'],
+            'bold': ['/System/Library/Fonts/Supplemental/Arial Unicode.ttf'],
+        },
+        {
+            'name': 'NotoSans',
+            'regular': ['NotoSans-Regular.ttf'],
+            'bold': ['NotoSans-Bold.ttf'],
+        },
     ]
 
-    for font_name, font_path in font_candidates:
-        try:
-            pdfmetrics.registerFont(TTFont(font_name, font_path))
-            return font_name
-        except Exception:
+    for family in font_families:
+        name = family['name']
+        bold_name = f'{name}-Bold'
+        reg_ok = False
+        bold_ok = False
+
+        for path in family['regular']:
+            try:
+                pdfmetrics.registerFont(TTFont(name, path))
+                reg_ok = True
+                break
+            except Exception:
+                continue
+
+        if not reg_ok:
             continue
 
-    return 'Helvetica'
+        for path in family['bold']:
+            try:
+                pdfmetrics.registerFont(TTFont(bold_name, path))
+                bold_ok = True
+                break
+            except Exception:
+                continue
+
+        if not bold_ok:
+            bold_name = name  # fall back to regular for bold
+
+        try:
+            registerFontFamily(name, normal=name, bold=bold_name)
+        except Exception:
+            pass
+
+        return (name, bold_name)
+
+    return ('Helvetica', 'Helvetica-Bold')
 
 
-UNICODE_FONT = _register_unicode_font()
+UNICODE_FONT, UNICODE_FONT_BOLD = _register_unicode_fonts()
 
 
 class PatternPDFService:
@@ -82,6 +131,9 @@ class PatternPDFService:
         Returns:
             PDF file as bytes
         """
+        logger = logging.getLogger(__name__)
+        t_total = time.perf_counter()
+
         buffer = io.BytesIO()
 
         doc = SimpleDocTemplate(
@@ -110,9 +162,12 @@ class PatternPDFService:
         styles = PatternPDFService._get_styles()
 
         # Assemble state once for all rendering calls
+        t0 = time.perf_counter()
         state = ProjectService.assemble_state(project)
+        logger.info('[pdf] assemble_state: %.3fs', time.perf_counter() - t0)
 
         # Generate pattern data
+        t0 = time.perf_counter()
         legend = PatternRenderer.generate_legend(
             state, project.width, project.height
         )
@@ -122,27 +177,66 @@ class PatternPDFService:
         legend_by_stitch = PatternRenderer.generate_legend_by_stitch_type(
             state, project.width, project.height
         )
+        logger.info('[pdf] legend generation: %.3fs', time.perf_counter() - t0)
 
         # Page 1: Overview
+        t0 = time.perf_counter()
         elements.extend(PatternPDFService._build_overview_page(
             project, state, legend, total_stitches, styles, logo_path
         ))
+        logger.info('[pdf] overview page: %.3fs', time.perf_counter() - t0)
 
         # Page 2+: Color legend + stitch type breakdown (flows together)
         elements.append(PageBreak())
+        t0 = time.perf_counter()
         elements.extend(PatternPDFService._build_legend_pages(
             legend, legend_by_stitch, total_stitches, styles
         ))
+        logger.info('[pdf] legend pages: %.3fs', time.perf_counter() - t0)
 
         # Pattern grid pages
         page_definitions = PatternRenderer.calculate_pattern_pages(
             project.width, project.height
         )
+        logger.info('[pdf] rendering %d pattern pages...', len(page_definitions))
 
-        for page_def in page_definitions:
+        t_pages = time.perf_counter()
+        shared_stamp_cache = {}
+        num_pages = len(page_definitions)
+        app = current_app._get_current_object()
+        worker_count = min(os.cpu_count() or 4, num_pages, 8)
+
+        # Render page images in parallel (heavy numpy/OpenCV work releases GIL)
+        def _render_page_image(page_def):
+            with app.app_context():
+                t_page = time.perf_counter()
+                img = PatternRenderer.render_symbol_page(
+                    state, project.width, project.height,
+                    page_def['x_start'], page_def['y_start'],
+                    page_def['x_end'], page_def['y_end'],
+                    cell_size=30, stamp_cache=shared_stamp_cache,
+                    **render_mode
+                )
+                logger.info('[pdf]   page %d/%d rendered: %.3fs',
+                             page_def['page_num'], num_pages,
+                             time.perf_counter() - t_page)
+                return img
+
+        if worker_count > 1:
+            with ThreadPoolExecutor(max_workers=worker_count) as executor:
+                page_images = list(executor.map(_render_page_image, page_definitions))
+        else:
+            page_images = [_render_page_image(pd) for pd in page_definitions]
+
+        logger.info('[pdf] all page images rendered: %.3fs (%d workers)',
+                     time.perf_counter() - t_pages, worker_count)
+
+        # Build PDF elements sequentially (must maintain page order)
+        for page_def, page_image in zip(page_definitions, page_images):
             elements.append(PageBreak())
             elements.extend(PatternPDFService._build_pattern_page(
-                project, state, page_def, styles, render_mode=render_mode
+                project, state, page_def, styles,
+                render_mode=render_mode, page_image=page_image
             ))
 
         # Calculate total pages for footer
@@ -151,11 +245,15 @@ class PatternPDFService:
         total_pages = 2 + len(page_definitions)
 
         # Build PDF with custom footer
+        t0 = time.perf_counter()
         doc.build(
             elements,
             onFirstPage=lambda c, d: PatternPDFService._add_footer(c, d, 1, total_pages, logo_path),
             onLaterPages=lambda c, d: PatternPDFService._add_footer(c, d, d.page, total_pages, logo_path)
         )
+        logger.info('[pdf] doc.build (ReportLab): %.3fs', time.perf_counter() - t0)
+
+        logger.info('[pdf] TOTAL generate_pdf: %.3fs', time.perf_counter() - t_total)
 
         buffer.seek(0)
         return buffer.getvalue()
@@ -168,6 +266,7 @@ class PatternPDFService:
         styles.add(ParagraphStyle(
             name='PatternTitle',
             parent=styles['Heading1'],
+            fontName=UNICODE_FONT_BOLD,
             fontSize=18,
             spaceAfter=6 * mm
         ))
@@ -175,6 +274,7 @@ class PatternPDFService:
         styles.add(ParagraphStyle(
             name='PatternSubtitle',
             parent=styles['Normal'],
+            fontName=UNICODE_FONT,
             fontSize=10,
             textColor=colors.gray,
             spaceAfter=4 * mm
@@ -183,6 +283,7 @@ class PatternPDFService:
         styles.add(ParagraphStyle(
             name='SectionHeader',
             parent=styles['Heading2'],
+            fontName=UNICODE_FONT_BOLD,
             fontSize=14,
             spaceBefore=4 * mm,
             spaceAfter=3 * mm
@@ -191,9 +292,15 @@ class PatternPDFService:
         styles.add(ParagraphStyle(
             name='SmallNote',
             parent=styles['Normal'],
+            fontName=UNICODE_FONT,
             fontSize=8,
             textColor=colors.gray
         ))
+
+        # Override base styles so any Paragraph using them also gets Unicode
+        styles['Normal'].fontName = UNICODE_FONT
+        styles['Heading1'].fontName = UNICODE_FONT_BOLD
+        styles['Heading2'].fontName = UNICODE_FONT_BOLD
 
         return styles
 
@@ -246,11 +353,12 @@ class PatternPDFService:
 
         info_table = Table(info_data, colWidths=[3 * cm, 5 * cm])
         info_table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTNAME', (0, 0), (-1, 0), UNICODE_FONT_BOLD),
             ('FONTSIZE', (0, 0), (-1, 0), 11),
             ('SPAN', (0, 0), (1, 0)),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-            ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (0, 1), (0, -1), UNICODE_FONT_BOLD),
+            ('FONTNAME', (1, 1), (1, -1), UNICODE_FONT),
             ('FONTSIZE', (0, 1), (-1, -1), 9),
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             ('TOPPADDING', (0, 1), (-1, -1), 3),
@@ -346,13 +454,13 @@ class PatternPDFService:
 
         color_style = [
             # Header
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTNAME', (0, 0), (-1, 0), UNICODE_FONT_BOLD),
             ('FONTSIZE', (0, 0), (-1, 0), 8),
             ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
             # Content
+            ('FONTNAME', (0, 1), (-1, -1), UNICODE_FONT),
             ('FONTSIZE', (0, 1), (-1, -1), 8),
-            ('FONTNAME', (0, 1), (0, -1), UNICODE_FONT),  # Symbol column
             ('ALIGN', (0, 0), (0, -1), 'CENTER'),   # Symbol centered
             ('ALIGN', (4, 0), (5, -1), 'RIGHT'),    # Stitches and skeins right-aligned
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
@@ -361,7 +469,7 @@ class PatternPDFService:
             # Grid (exclude totals row)
             ('GRID', (0, 0), (-1, -2), 0.5, colors.lightgrey),
             # Totals row
-            ('FONTNAME', (3, -1), (4, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (3, -1), (4, -1), UNICODE_FONT_BOLD),
             ('LINEABOVE', (0, -1), (-1, -1), 1, colors.black),
         ]
 
@@ -471,10 +579,11 @@ class PatternPDFService:
             line_table = Table(line_table_data, colWidths=line_col_widths)
 
             line_style = [
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTNAME', (0, 0), (-1, 0), UNICODE_FONT_BOLD),
                 ('FONTSIZE', (0, 0), (-1, 0), 8),
                 ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+                ('FONTNAME', (0, 1), (-1, -1), UNICODE_FONT),
                 ('FONTSIZE', (0, 1), (-1, -1), 8),
                 ('ALIGN', (3, 0), (3, -1), 'RIGHT'),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
@@ -506,8 +615,14 @@ class PatternPDFService:
         return elements
 
     @staticmethod
-    def _build_pattern_page(project, state, page_def: Dict, styles, render_mode: dict = None) -> List:
-        """Build a pattern grid page."""
+    def _build_pattern_page(project, state, page_def: Dict, styles,
+                            render_mode: dict = None, stamp_cache: dict = None,
+                            page_image=None) -> List:
+        """Build a pattern grid page.
+
+        Args:
+            page_image: Pre-rendered numpy array (skips rendering if provided).
+        """
         elements = []
 
         if render_mode is None:
@@ -528,18 +643,20 @@ class PatternPDFService:
             styles['PatternSubtitle']
         ))
 
-        # Generate pattern image for this page
-        page_image = PatternRenderer.render_symbol_page(
-            state,
-            project.width,
-            project.height,
-            page_def['x_start'],
-            page_def['y_start'],
-            page_def['x_end'],
-            page_def['y_end'],
-            cell_size=30,
-            **render_mode
-        )
+        # Use pre-rendered image or render now
+        if page_image is None:
+            page_image = PatternRenderer.render_symbol_page(
+                state,
+                project.width,
+                project.height,
+                page_def['x_start'],
+                page_def['y_start'],
+                page_def['x_end'],
+                page_def['y_end'],
+                cell_size=30,
+                stamp_cache=stamp_cache,
+                **render_mode
+            )
 
         img_buffer = PatternPDFService._numpy_to_image_buffer(page_image)
 
@@ -598,7 +715,7 @@ class PatternPDFService:
         else:
             text_x = PatternPDFService.MARGIN
 
-        canvas.setFont('Helvetica', 8)
+        canvas.setFont(UNICODE_FONT, 8)
         canvas.setFillColor(colors.gray)
         canvas.drawString(text_x, footer_y, PatternPDFService.SITE_URL)
 

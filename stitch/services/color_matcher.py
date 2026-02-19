@@ -190,6 +190,135 @@ class ColorMatcher:
         return matched_colors
 
     @staticmethod
+    def delta_e_2000(lab1: Tuple[float, float, float], lab2: Tuple[float, float, float]) -> float:
+        """
+        Calculate CIEDE2000 color difference between two standard LAB colors.
+
+        Args:
+            lab1: (L, a, b) in standard scale: L 0-100, a/b -128..127
+            lab2: (L, a, b) in standard scale
+
+        Returns:
+            Delta E 2000 distance (lower = more similar)
+        """
+        import math
+
+        L1, a1, b1 = lab1
+        L2, a2, b2 = lab2
+
+        # Mean L
+        Lbar = (L1 + L2) / 2.0
+
+        C1 = math.sqrt(a1 * a1 + b1 * b1)
+        C2 = math.sqrt(a2 * a2 + b2 * b2)
+        Cbar = (C1 + C2) / 2.0
+
+        Cbar7 = Cbar ** 7
+        G = 0.5 * (1 - math.sqrt(Cbar7 / (Cbar7 + 25 ** 7)))
+
+        a1p = a1 * (1 + G)
+        a2p = a2 * (1 + G)
+
+        C1p = math.sqrt(a1p * a1p + b1 * b1)
+        C2p = math.sqrt(a2p * a2p + b2 * b2)
+        Cbarp = (C1p + C2p) / 2.0
+
+        h1p = math.degrees(math.atan2(b1, a1p)) % 360
+        h2p = math.degrees(math.atan2(b2, a2p)) % 360
+
+        if abs(h1p - h2p) <= 180:
+            dhp = h2p - h1p
+        elif h2p - h1p > 180:
+            dhp = h2p - h1p - 360
+        else:
+            dhp = h2p - h1p + 360
+
+        dLp = L2 - L1
+        dCp = C2p - C1p
+        dHp = 2 * math.sqrt(C1p * C2p) * math.sin(math.radians(dhp / 2))
+
+        if C1p * C2p == 0:
+            Hbarp = h1p + h2p
+        elif abs(h1p - h2p) <= 180:
+            Hbarp = (h1p + h2p) / 2
+        elif h1p + h2p < 360:
+            Hbarp = (h1p + h2p + 360) / 2
+        else:
+            Hbarp = (h1p + h2p - 360) / 2
+
+        T = (1
+             - 0.17 * math.cos(math.radians(Hbarp - 30))
+             + 0.24 * math.cos(math.radians(2 * Hbarp))
+             + 0.32 * math.cos(math.radians(3 * Hbarp + 6))
+             - 0.20 * math.cos(math.radians(4 * Hbarp - 63)))
+
+        SL = 1 + 0.015 * (Lbar - 50) ** 2 / math.sqrt(20 + (Lbar - 50) ** 2)
+        SC = 1 + 0.045 * Cbarp
+        SH = 1 + 0.015 * Cbarp * T
+
+        Cbarp7 = Cbarp ** 7
+        RT = (-2 * math.sqrt(Cbarp7 / (Cbarp7 + 25 ** 7))
+              * math.sin(math.radians(60 * math.exp(-((Hbarp - 275) / 25) ** 2))))
+
+        dE = math.sqrt(
+            (dLp / SL) ** 2
+            + (dCp / SC) ** 2
+            + (dHp / SH) ** 2
+            + RT * (dCp / SC) * (dHp / SH)
+        )
+        return dE
+
+    @staticmethod
+    def rgb_to_standard_lab(rgb: Tuple[int, int, int]) -> Tuple[float, float, float]:
+        """
+        Convert RGB to standard LAB (L: 0-100, a/b: -128..127).
+
+        OpenCV LAB uses L: 0-255, a/b: 0-255 centered at 128, so we convert.
+        """
+        cv_lab = ColorMatcher.rgb_to_lab(rgb)
+        L_std = float(cv_lab[0]) * 100.0 / 255.0
+        a_std = float(cv_lab[1]) - 128.0
+        b_std = float(cv_lab[2]) - 128.0
+        return (L_std, a_std, b_std)
+
+    @staticmethod
+    def find_nearest_color_de2000(rgb: Tuple[int, int, int],
+                                  palette: List[Color],
+                                  palette_lab_cache: dict = None) -> Tuple[Color, float]:
+        """
+        Find nearest color in palette using Delta E 2000.
+
+        Args:
+            rgb: RGB tuple to match
+            palette: List of Color objects to search
+            palette_lab_cache: Optional dict mapping Color.id -> standard LAB tuple.
+                               If provided, avoids recomputing LAB for each call.
+
+        Returns:
+            Tuple of (nearest Color, distance)
+        """
+        lab = ColorMatcher.rgb_to_standard_lab(rgb)
+
+        min_distance = float('inf')
+        nearest_color = None
+
+        for palette_color in palette:
+            if palette_lab_cache and palette_color.id in palette_lab_cache:
+                pal_lab = palette_lab_cache[palette_color.id]
+            else:
+                pal_rgb = ColorMatcher.hex_to_rgb(palette_color.hex)
+                pal_lab = ColorMatcher.rgb_to_standard_lab(pal_rgb)
+                if palette_lab_cache is not None:
+                    palette_lab_cache[palette_color.id] = pal_lab
+
+            distance = ColorMatcher.delta_e_2000(lab, pal_lab)
+            if distance < min_distance:
+                min_distance = distance
+                nearest_color = palette_color
+
+        return nearest_color, min_distance
+
+    @staticmethod
     def merge_similar_colors(matched_colors: List[Dict], merge_threshold: float = 10.0) -> List[Dict]:
         """
         Merge similar DMC colors to reduce palette size

@@ -125,11 +125,20 @@ class ProjectService:
         project_colors = ProjectColor.query.filter_by(project_id=project.id) \
             .order_by(ProjectColor.sort_order).all()
 
+        # Batch-load all Color objects referenced by this project's palette
+        color_ids = [pc.color_id for pc in project_colors]
+        if color_ids:
+            colors_by_id = {
+                c.id: c for c in Color.query.filter(Color.id.in_(color_ids)).all()
+            }
+        else:
+            colors_by_id = {}
+
         # Assemble palette and build ProjectColor UUID → palette index mapping
         palette = []
         color_id_to_index = {}
         for idx, pc in enumerate(project_colors):
-            color = Color.query.get(pc.color_id)
+            color = colors_by_id.get(pc.color_id)
             if color:
                 rgb = ProjectService._hex_to_rgb(color.hex)
                 palette.append({

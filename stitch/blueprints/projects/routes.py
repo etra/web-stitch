@@ -1,10 +1,12 @@
 """Project CRUD routes."""
+import base64
 import io
 import logging
+import types
 
 from pathlib import Path
 
-from flask import current_app, render_template, request, redirect, url_for, flash, send_file, session
+from flask import current_app, jsonify, render_template, request, redirect, url_for, flash, send_file, session
 
 from stitch.blueprints.projects import bp
 from stitch.blueprints.auth.routes import login_required
@@ -183,6 +185,132 @@ def thumbnail_large(project_id):
         return '', 500
 
 
+@bp.route('/<project_id>/thumbnail-fill')
+def thumbnail_fill(project_id):
+    """Generate enhanced thumbnail with 4px per cell for crisp detail.
+
+    Accessible by project owner or anyone if the project is public.
+    """
+    from stitch.services.pattern_renderer import PatternRenderer
+    import cv2
+
+    project = ProjectService.get_project(project_id)
+    if not project or (not project.is_public and project.user_id != session.get('user_id')):
+        return '', 404
+
+    try:
+        state = ProjectService.assemble_state(project)
+        pattern = PatternRenderer.render_colored_pattern(
+            state, project.width, project.height,
+            cell_size=4, solid_fill=True
+        )
+        return _send_image(_render_thumbnail_canvas(pattern))
+    except Exception:
+        return '', 500
+
+
+def _render_thumbnail_canvas(image, canvas_w=450, canvas_h=250):
+    """Scale image to fit and center on a white canvas."""
+    import cv2
+    import numpy as np
+
+    h, w = image.shape[:2]
+    scale = min(canvas_w / w, canvas_h / h)
+    if scale < 1:
+        new_w, new_h = int(w * scale), int(h * scale)
+        image = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_AREA)
+        h, w = new_h, new_w
+
+    canvas = np.full((canvas_h, canvas_w, 3), 255, dtype=np.uint8)
+    y_off = (canvas_h - h) // 2
+    x_off = (canvas_w - w) // 2
+    canvas[y_off:y_off + h, x_off:x_off + w] = image
+    return canvas
+
+
+def _send_image(image):
+    """Encode RGB numpy array as PNG and return a Flask response."""
+    import cv2
+
+    image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    success, buffer = cv2.imencode('.png', image_bgr)
+    if not success:
+        return '', 500
+    return send_file(
+        io.BytesIO(buffer.tobytes()),
+        mimetype='image/png',
+        as_attachment=False
+    )
+
+
+@bp.route('/<project_id>/thumbnail-cross')
+def thumbnail_cross(project_id):
+    """Thumbnail with colored X stitches on 450x250 canvas."""
+    from stitch.services.pattern_renderer import PatternRenderer
+
+    project = ProjectService.get_project(project_id)
+    if not project or (not project.is_public and project.user_id != session.get('user_id')):
+        return '', 404
+
+    try:
+        state = ProjectService.assemble_state(project)
+        pattern = PatternRenderer.render_colored_pattern(
+            state, project.width, project.height,
+            cell_size=8, solid_fill=False
+        )
+        return _send_image(_render_thumbnail_canvas(pattern))
+    except Exception:
+        return '', 500
+
+
+@bp.route('/<project_id>/thumbnail-symbol')
+def thumbnail_symbol(project_id):
+    """Thumbnail with colored cells and symbols on 450x250 canvas."""
+    from stitch.services.pattern_renderer import PatternRenderer
+
+    project = ProjectService.get_project(project_id)
+    if not project or (not project.is_public and project.user_id != session.get('user_id')):
+        return '', 404
+
+    try:
+        state = ProjectService.assemble_state(project)
+        pattern = PatternRenderer.render_symbol_page(
+            state, project.width, project.height,
+            x_start=0, y_start=0,
+            x_end=project.width, y_end=project.height,
+            cell_size=10,
+            show_color=True, show_symbol=True,
+            show_stitch=False, show_line=True
+        )
+        return _send_image(_render_thumbnail_canvas(pattern))
+    except Exception:
+        return '', 500
+
+
+@bp.route('/<project_id>/thumbnail-symbol-bw')
+def thumbnail_symbol_bw(project_id):
+    """Thumbnail with B&W symbols on white grid on 450x250 canvas."""
+    from stitch.services.pattern_renderer import PatternRenderer
+
+    project = ProjectService.get_project(project_id)
+    if not project or (not project.is_public and project.user_id != session.get('user_id')):
+        return '', 404
+
+    try:
+        state = ProjectService.assemble_state(project)
+        pattern = PatternRenderer.render_symbol_page(
+            state, project.width, project.height,
+            x_start=0, y_start=0,
+            x_end=project.width, y_end=project.height,
+            cell_size=10,
+            show_color=False, show_symbol=True,
+            show_stitch=False, show_line=True
+        )
+        return _send_image(_render_thumbnail_canvas(pattern))
+    except Exception:
+        return '', 500
+
+
 @bp.route('/<project_id>/reference-images/<image_id>')
 @login_required
 def reference_image(project_id, image_id):
@@ -287,6 +415,135 @@ def clone(project_id):
         current_app.logger.error(f'Clone error: {e}')
         flash('An error occurred while cloning the project.', 'danger')
         return redirect(url_for('projects.list'))
+
+
+# =============================================================================
+# WIZARD ROUTES - Smart Image Preview
+# =============================================================================
+
+@bp.route('/new/smart-preview', methods=['POST'])
+@login_required
+def smart_preview():
+    """Generate a preview of smart image conversion without creating a project.
+
+    Expects multipart form with 'image' file and optional 'max_colors' int.
+    Returns JSON with base64 preview PNG, color count, and cell count.
+    """
+    from stitch.services.smart_image_service import SmartImageService
+    from stitch.services.pattern_renderer import PatternRenderer
+    from stitch.services.color_matcher import ColorMatcher
+    import cv2
+
+    image_file = request.files.get('image')
+    if not image_file or not image_file.filename:
+        return jsonify({'error': 'No image file provided.'}), 400
+
+    max_palette_colors = current_app.config.get('MAX_PALETTE_COLORS', 32)
+    max_colors = request.form.get('max_colors', type=int) or 32
+    max_colors = max(2, min(max_colors, max_palette_colors))
+
+    backstitch = request.form.get('backstitch', 'true') == 'true'
+    edge_detail = request.form.get('edge_detail', 'medium')
+    if edge_detail not in ('low', 'medium', 'high'):
+        edge_detail = 'medium'
+    despeckle = request.form.get('despeckle', 'light')
+    if despeckle not in ('off', 'light', 'heavy'):
+        despeckle = 'light'
+
+    wizard_data = WizardService.get_wizard_data()
+    width = wizard_data.get('width', 70)
+    height = wizard_data.get('height', 70)
+    vendor_key = wizard_data.get('vendor')
+
+    vendor = None
+    if vendor_key:
+        try:
+            vendor = ColorVendor(vendor_key)
+        except ValueError:
+            pass
+
+    fake_project = types.SimpleNamespace(width=width, height=height)
+
+    try:
+        result = SmartImageService.convert_image_to_stitches(
+            fake_project, image_file, max_colors, vendor=vendor,
+            backstitch=backstitch, edge_detail=edge_detail, despeckle=despeckle,
+        )
+    except Exception as e:
+        logging.exception('Smart preview processing error')
+        return jsonify({'error': f'Image processing failed: {str(e)}'}), 500
+
+    # Build palette in renderer-compatible format
+    new_colors = result.get('newColors', [])
+    color_id_to_index = {}
+    palette = []
+    for idx, color in enumerate(new_colors):
+        color_id_to_index[color['id']] = idx
+        palette.append({
+            'rgbHex': color.get('rgbHex'),
+            'rgb': ColorMatcher.hex_to_rgb(color.get('rgbHex')),
+            'symbol': color.get('symbol', '?'),
+        })
+
+    # Convert cells from {color, stitch} to {paletteIndex, stitchType}
+    layer_data = result.get('layer', {})
+    raw_cells = layer_data.get('cells', {})
+    converted_cells = {}
+    cell_count = 0
+    for key, stitch_list in raw_cells.items():
+        converted = []
+        for s in stitch_list:
+            pi = color_id_to_index.get(s.get('color'), 0)
+            converted.append({
+                'paletteIndex': pi,
+                'stitchType': s.get('stitch', 'full'),
+            })
+        converted_cells[key] = converted
+        cell_count += len(converted)
+
+    # Convert paths similarly
+    raw_paths = layer_data.get('paths', [])
+    converted_paths = []
+    for p in raw_paths:
+        pi = color_id_to_index.get(p.get('color'), 0)
+        converted_paths.append({
+            'paletteIndex': pi,
+            'stitchType': p.get('stitch', 'line'),
+            'startX': p.get('startX', 0),
+            'startY': p.get('startY', 0),
+            'endX': p.get('endX', 0),
+            'endY': p.get('endY', 0),
+        })
+
+    state = {
+        'palette': palette,
+        'layers': [{
+            'type': 'raster',
+            'visible': True,
+            'activeForExport': True,
+            'cells': converted_cells,
+            'paths': converted_paths,
+        }],
+    }
+
+    pattern = PatternRenderer.render_colored_pattern(
+        state, width, height, cell_size=4, solid_fill=True
+    )
+    thumb = _render_thumbnail_canvas(pattern)
+
+    # Encode to base64 PNG
+    thumb_bgr = cv2.cvtColor(thumb, cv2.COLOR_RGB2BGR)
+    success, buffer = cv2.imencode('.png', thumb_bgr)
+    if not success:
+        return jsonify({'error': 'Failed to encode preview image.'}), 500
+
+    b64 = base64.b64encode(buffer.tobytes()).decode('ascii')
+
+    return jsonify({
+        'preview': f'data:image/png;base64,{b64}',
+        'colorCount': len(new_colors),
+        'cellCount': cell_count,
+    })
 
 
 # =============================================================================
@@ -419,6 +676,32 @@ def new_create():
 
                 project = WizardService.create_project_from_image(
                     user_id, image_file, max_colors
+                )
+            elif creation_mode == 'smart_image':
+                image_file = request.files.get('image')
+                max_colors = request.form.get('max_colors', type=int) or 32
+
+                if not image_file or not image_file.filename:
+                    flash('No image file provided.', 'danger')
+                    return render_template('projects/new/create.html',
+                                           wizard_data=wizard_data,
+                                           max_palette_colors=max_palette_colors)
+
+                max_colors = min(max_colors, max_palette_colors)
+
+                si_backstitch = request.form.get('backstitch', 'true') == 'true'
+                si_edge_detail = request.form.get('edge_detail', 'medium')
+                if si_edge_detail not in ('low', 'medium', 'high'):
+                    si_edge_detail = 'medium'
+                si_despeckle = request.form.get('despeckle', 'light')
+                if si_despeckle not in ('off', 'light', 'heavy'):
+                    si_despeckle = 'light'
+
+                project = WizardService.create_smart_image_project(
+                    user_id, image_file, max_colors,
+                    backstitch=si_backstitch,
+                    edge_detail=si_edge_detail,
+                    despeckle=si_despeckle,
                 )
             else:
                 project = WizardService.create_blank_project(user_id)

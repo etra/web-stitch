@@ -56,6 +56,16 @@
     .pattern-page-image.loading {
         opacity: 0.5;
     }
+    .pattern-loading-placeholder {
+        cursor: pointer;
+        border: 2px dashed var(--bs-border-color);
+        border-radius: var(--bs-border-radius);
+        transition: border-color 0.15s, background-color 0.15s;
+    }
+    .pattern-loading-placeholder:hover {
+        border-color: var(--bs-primary);
+        background-color: rgba(var(--bs-primary-rgb), 0.04);
+    }
 </style>
 {% endblock %}
 
@@ -158,7 +168,7 @@
                             </tr>
                             <tr>
                                 <th>Pattern Pages:</th>
-                                <td>{{ pattern_pages | length }} page{% if pattern_pages | length != 1 %}s{% endif %}</td>
+                                <td>{{ page_definitions | length }} page{% if page_definitions | length != 1 %}s{% endif %}</td>
                             </tr>
                             <tr>
                                 <th>Created:</th>
@@ -289,11 +299,12 @@
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                     <!-- Left: sub-tabs -->
                     <ul class="nav nav-pills" id="patternSubTabs">
-                        {% for page in pattern_pages %}
+                        {% for page in page_definitions %}
                         <li class="nav-item">
                             <button class="nav-link {% if loop.first %}active{% endif %}"
                                     data-bs-toggle="pill"
-                                    data-bs-target="#pattern-{{ page.page_num }}">
+                                    data-bs-target="#pattern-{{ page.page_num }}"
+                                    data-page-num="{{ page.page_num }}">
                                 {{ page.row }}-{{ page.col }}
                             </button>
                         </li>
@@ -334,11 +345,12 @@
                     </div>
                 </div>
 
-                <!-- Sub-tab content -->
+                <!-- Sub-tab content (images loaded lazily via AJAX) -->
                 <div class="tab-content" id="patternSubTabContent">
-                    {% for page in pattern_pages %}
+                    {% for page in page_definitions %}
                     <div class="tab-pane fade {% if loop.first %}show active{% endif %}"
-                         id="pattern-{{ page.page_num }}" role="tabpanel">
+                         id="pattern-{{ page.page_num }}" role="tabpanel"
+                         data-page-num="{{ page.page_num }}">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h4 class="mb-0">
                                 Pattern Grid
@@ -349,11 +361,15 @@
                             <span class="badge bg-primary">Stitches: {{ page.label }}</span>
                         </div>
                         <div class="pattern-image-container text-center position-relative">
-                            <img src="{{ page.image }}"
-                                 alt="Pattern Grid {{ page.label }}"
-                                 class="img-fluid pattern-page-image"
-                                 data-page-num="{{ page.page_num }}"
-                                 data-original-src="{{ page.image }}">
+                            <img alt="Pattern Grid {{ page.label }}"
+                                 class="img-fluid pattern-page-image d-none"
+                                 data-page-num="{{ page.page_num }}">
+                            <div class="pattern-loading-placeholder" data-page-num="{{ page.page_num }}">
+                                <div class="py-5 text-muted">
+                                    <i class="bi bi-grid-3x3-gap" style="font-size: 2rem;"></i>
+                                    <div class="mt-2">Click to load pattern page</div>
+                                </div>
+                            </div>
                             <div class="pattern-loading-overlay d-none">
                                 <div class="spinner-border text-primary" role="status">
                                     <span class="visually-hidden">Loading...</span>
@@ -455,29 +471,24 @@
      * Display modes for pattern grid pages:
      *
      *   Chart Symbol  — color=1, stitch=0, symbol=1
-     *     Filled color cells with symbol characters.
-     *     Traditional cross-stitch chart notation used for reading patterns.
-     *
      *   Chart Symbol (B&W) — color=0, stitch=0, symbol=1
-     *     Black symbols on white grid. Ink-friendly for printing.
-     *
      *   Stitch Preview — color=0, stitch=1, symbol=0
-     *     Colored thread paths (X, half, quarter) on a white grid.
-     *     Shows how the actual stitchwork will look.
-     *
      *   Lines — independent toggle (show_line=0/1)
-     *     Backstitch and line paths between grid corners.
+     *
+     * Pattern page images are loaded lazily via AJAX when a tab is first
+     * activated (or its placeholder is clicked). Images are cached client-side
+     * per page+display-mode combo.
      */
 
     // --- Display state ---
-    // "chart" = Chart Symbol (default), "chart-bw" = B&W Chart, "stitch" = Stitch Preview
     let displayMode = 'chart';
     let showLines = true;
 
     const projectId = "{{ project.id }}";
     const pdfBaseUrl = "{{ url_for('print.pdf', project_id=project.id) }}";
-    const patternImages = document.querySelectorAll('.pattern-page-image');
     const imageCache = {};
+    // Track which pages have been loaded (at least once for current mode)
+    const loadedPages = new Set();
 
     function getDisplayFlags() {
         if (displayMode === 'chart') {
@@ -497,62 +508,100 @@
                '&line=' + (f.line ? '1' : '0');
     }
 
-    // Cache initial images under default flag combo
-    const initialKey = buildDisplayQuery();
-    patternImages.forEach(function(img) {
-        imageCache[img.dataset.pageNum + '_' + initialKey] = img.dataset.originalSrc;
+    // --- Lazy page loading ---
+    async function loadPageImage(pageNum) {
+        const query = buildDisplayQuery();
+        const cacheKey = pageNum + '_' + query;
+
+        const container = document.querySelector('#pattern-' + pageNum + ' .pattern-image-container');
+        if (!container) return;
+
+        const img = container.querySelector('.pattern-page-image');
+        const placeholder = container.querySelector('.pattern-loading-placeholder');
+        const overlay = container.querySelector('.pattern-loading-overlay');
+
+        // Already cached — just show it
+        if (imageCache[cacheKey]) {
+            img.src = imageCache[cacheKey];
+            img.classList.remove('d-none');
+            if (placeholder) placeholder.classList.add('d-none');
+            loadedPages.add(pageNum);
+            return;
+        }
+
+        // Show spinner
+        if (placeholder) placeholder.classList.add('d-none');
+        overlay.classList.remove('d-none');
+        img.classList.add('loading');
+
+        try {
+            const response = await fetch(
+                '/print/' + projectId + '/api/page/' + pageNum + '?' + query
+            );
+            const data = await response.json();
+            if (data.image) {
+                imageCache[cacheKey] = data.image;
+                img.src = data.image;
+                img.classList.remove('d-none');
+                loadedPages.add(pageNum);
+            }
+        } catch (error) {
+            console.error('Failed to load pattern page ' + pageNum + ':', error);
+            // Show placeholder again on error
+            if (placeholder) placeholder.classList.remove('d-none');
+        } finally {
+            img.classList.remove('loading');
+            overlay.classList.add('d-none');
+        }
+    }
+
+    // Reload only the currently visible page when display mode changes
+    function reloadVisiblePage() {
+        const activePane = document.querySelector('#patternSubTabContent > .tab-pane.active.show');
+        if (!activePane) return;
+        const pageNum = activePane.dataset.pageNum;
+        if (pageNum && loadedPages.has(pageNum)) {
+            loadPageImage(pageNum);
+        }
+    }
+
+    // --- Tab activation triggers lazy load ---
+    document.querySelectorAll('#patternSubTabs button[data-page-num]').forEach(function(btn) {
+        btn.addEventListener('shown.bs.tab', function() {
+            loadPageImage(this.dataset.pageNum);
+        });
+    });
+
+    // --- Placeholder click triggers load ---
+    document.querySelectorAll('.pattern-loading-placeholder').forEach(function(el) {
+        el.addEventListener('click', function() {
+            loadPageImage(this.dataset.pageNum);
+        });
+    });
+
+    // Auto-load the first page when the Pattern tab is shown
+    document.getElementById('pattern-tab').addEventListener('shown.bs.tab', function() {
+        var firstBtn = document.querySelector('#patternSubTabs button[data-page-num]');
+        if (firstBtn && !loadedPages.has(firstBtn.dataset.pageNum)) {
+            loadPageImage(firstBtn.dataset.pageNum);
+        }
     });
 
     // --- Inline controls ---
     document.getElementById('modeChart').addEventListener('change', function() {
-        if (this.checked) { displayMode = 'chart'; updatePatternImages(); }
+        if (this.checked) { displayMode = 'chart'; reloadVisiblePage(); }
     });
     document.getElementById('modeChartBW').addEventListener('change', function() {
-        if (this.checked) { displayMode = 'chart-bw'; updatePatternImages(); }
+        if (this.checked) { displayMode = 'chart-bw'; reloadVisiblePage(); }
     });
     document.getElementById('modeStitch').addEventListener('change', function() {
-        if (this.checked) { displayMode = 'stitch'; updatePatternImages(); }
+        if (this.checked) { displayMode = 'stitch'; reloadVisiblePage(); }
     });
     document.getElementById('lineToggle').addEventListener('click', function() {
         showLines = !showLines;
         this.classList.toggle('active', showLines);
-        updatePatternImages();
+        reloadVisiblePage();
     });
-
-    // --- Pattern image updates ---
-    async function updatePatternImages() {
-        const query = buildDisplayQuery();
-
-        for (const img of patternImages) {
-            const pageNum = img.dataset.pageNum;
-            const cacheKey = pageNum + '_' + query;
-
-            if (imageCache[cacheKey]) {
-                img.src = imageCache[cacheKey];
-                continue;
-            }
-
-            img.classList.add('loading');
-            const overlay = img.parentElement.querySelector('.pattern-loading-overlay');
-            if (overlay) overlay.classList.remove('d-none');
-
-            try {
-                const response = await fetch(
-                    '/print/' + projectId + '/api/page/' + pageNum + '?' + query
-                );
-                const data = await response.json();
-                if (data.image) {
-                    imageCache[cacheKey] = data.image;
-                    img.src = data.image;
-                }
-            } catch (error) {
-                console.error('Failed to load pattern page:', error);
-            } finally {
-                img.classList.remove('loading');
-                if (overlay) overlay.classList.add('d-none');
-            }
-        }
-    }
 
     // --- PDF Modal ---
     const pdfDownloadBtn = document.getElementById('pdfDownloadBtn');
@@ -560,7 +609,6 @@
     const pdfPreviewSpinner = document.querySelector('.pdf-preview-spinner');
     let pdfPreviewController = null;
 
-    // Sync modal with current state when it opens
     document.getElementById('pdfOptionsModal').addEventListener('show.bs.modal', function() {
         document.getElementById('pdfModeChart').checked = (displayMode === 'chart');
         document.getElementById('pdfModeChartBW').checked = (displayMode === 'chart-bw');
@@ -570,7 +618,6 @@
         loadPdfPreview();
     });
 
-    // Modal mode radios
     document.getElementById('pdfModeChart').addEventListener('change', function() {
         if (this.checked) {
             displayMode = 'chart';
@@ -593,7 +640,6 @@
         }
     });
 
-    // Modal line toggle
     document.getElementById('pdfShowLine').addEventListener('change', function() {
         showLines = this.checked;
         document.getElementById('lineToggle').classList.toggle('active', showLines);
@@ -603,7 +649,7 @@
     function onModalChange() {
         updatePdfLink();
         loadPdfPreview();
-        updatePatternImages();
+        reloadVisiblePage();
     }
 
     function updatePdfLink() {

@@ -1,5 +1,8 @@
 """Pattern routes for viewing and sharing cross-stitch patterns."""
+import logging
 import os
+import time
+
 from flask import render_template, redirect, url_for, flash, session, make_response, current_app, request
 
 from stitch.blueprints.print import bp
@@ -38,9 +41,15 @@ def view(project_id):
         return redirect(url_for('main.index'))
 
     try:
+        logger = logging.getLogger(__name__)
+        t_total = time.perf_counter()
+
+        t0 = time.perf_counter()
         state = ProjectService.assemble_state(project)
+        logger.info('[print/view] assemble_state: %.3fs', time.perf_counter() - t0)
 
         # Page 1: Overview - scaled colored pattern
+        t0 = time.perf_counter()
         overview_pattern = PatternRenderer.render_overview_pattern(
             state,
             project.width,
@@ -48,8 +57,10 @@ def view(project_id):
             max_size=500
         )
         overview_base64 = PatternRenderer.image_to_base64(overview_pattern)
+        logger.info('[print/view] overview render + base64: %.3fs', time.perf_counter() - t0)
 
         # Page 2: Legend with color/thread info
+        t0 = time.perf_counter()
         legend = PatternRenderer.generate_legend(
             state,
             project.width,
@@ -82,6 +93,7 @@ def view(project_id):
             project.width,
             project.height
         )
+        logger.info('[print/view] legend generation: %.3fs', time.perf_counter() - t0)
         # Stitch preview rendering disabled — by-stitch tables are commented out.
         # To re-enable, uncomment the block below.
         # for category, colors in legend_by_stitch.items():
@@ -91,41 +103,16 @@ def view(project_id):
         #         )
         #         color['stitchPreview'] = PatternRenderer.image_to_base64(preview)
 
-        # Pages 3+: Paginated symbol patterns (30x40 with 3-stitch overlap)
+        # Pages 3+: Calculate page definitions only (images loaded lazily via AJAX)
         page_definitions = PatternRenderer.calculate_pattern_pages(
             project.width,
             project.height,
         )
 
-        pattern_pages = []
-        for page_def in page_definitions:
-            # Default: Chart Symbol mode (color + symbol, no stitch paths)
-            page_image = PatternRenderer.render_symbol_page(
-                state,
-                project.width,
-                project.height,
-                page_def['x_start'],
-                page_def['y_start'],
-                page_def['x_end'],
-                page_def['y_end'],
-                cell_size=30,
-                show_color=True,
-                show_stitch=False,
-                show_symbol=True,
-                show_line=True
-            )
-            pattern_pages.append({
-                'page_num': page_def['page_num'],
-                'row': page_def['row'],
-                'col': page_def['col'],
-                'total_rows': page_def['total_rows'],
-                'total_cols': page_def['total_cols'],
-                'label': page_def['label'],
-                'image': PatternRenderer.image_to_base64(page_image)
-            })
-
-        # Total pages: 1 (overview) + 1 (legend) + pattern pages
-        total_pages = 2 + len(pattern_pages)
+        total_pages = 2 + len(page_definitions)
+        logger.info('[print/view] TOTAL: %.3fs (%d pages for %dx%d, %d colors)',
+                     time.perf_counter() - t_total, total_pages,
+                     project.width, project.height, len(legend))
 
         return render_template('print/view.html',
                                project=project,
@@ -134,7 +121,7 @@ def view(project_id):
                                legend_by_color=legend_by_color,
                                legend_by_stitch=legend_by_stitch,
                                total_stitches=total_stitches,
-                               pattern_pages=pattern_pages,
+                               page_definitions=page_definitions,
                                total_pages=total_pages)
 
     except Exception as e:
@@ -198,6 +185,9 @@ def pdf(project_id):
         return redirect(url_for('main.index'))
 
     try:
+        logger = logging.getLogger(__name__)
+        t_total = time.perf_counter()
+
         # Get display options from query parameters
         render_mode = _parse_render_mode(request.args)
 
@@ -209,16 +199,27 @@ def pdf(project_id):
             logo_path = None
 
         # Generate PDF with options
+        logger.info('[print/pdf] starting PDF generation for %dx%d pattern...',
+                     project.width, project.height)
         pdf_bytes = PatternPDFService.generate_pdf(
             project,
             logo_path,
             render_mode=render_mode
         )
+        logger.info('[print/pdf] TOTAL: %.3fs (%.1f KB)',
+                     time.perf_counter() - t_total, len(pdf_bytes) / 1024)
 
         # Create response
         response = make_response(pdf_bytes)
         response.headers['Content-Type'] = 'application/pdf'
-        response.headers['Content-Disposition'] = f'inline; filename="{project.name}.pdf"'
+        # ASCII-safe filename for latin-1 header + UTF-8 filename* for modern browsers
+        from urllib.parse import quote
+        safe_name = project.name.encode('ascii', 'replace').decode('ascii')
+        utf8_name = quote(project.name)
+        response.headers['Content-Disposition'] = (
+            f'inline; filename="{safe_name}.pdf"; '
+            f"filename*=UTF-8''{utf8_name}.pdf"
+        )
 
         return response
 
