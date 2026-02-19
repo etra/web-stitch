@@ -4,10 +4,13 @@ FROM python:3.12-slim
 # Set the working directory inside the container
 WORKDIR /app
 
-# Install system libraries required by OpenCV and Pillow
+# Install system libraries required by OpenCV and Pillow,
+# plus Unicode fonts for PDF generation (Cyrillic, CJK, etc.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglib2.0-0 \
+    fonts-dejavu-core \
+    fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy and install dependencies

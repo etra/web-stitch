@@ -33,11 +33,19 @@ from stitch.services.project_service import ProjectService
 def _register_unicode_fonts() -> tuple:
     """Register Unicode-capable TrueType fonts (regular + bold) with ReportLab.
 
+    Tries font families in priority order. NotoSansCJK is preferred because it
+    covers Latin, Cyrillic, Greek, AND CJK (Chinese/Japanese/Korean) scripts.
+    DejaVuSans covers Latin, Cyrillic, Greek, Hebrew, Arabic, and more.
     Returns (regular_name, bold_name) tuple. Falls back to Helvetica.
     """
     from reportlab.pdfbase.pdfmetrics import registerFontFamily
 
     font_families = [
+        {
+            'name': 'NotoSansCJK',
+            'regular': ['/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc'],
+            'bold': ['/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc'],
+        },
         {
             'name': 'DejaVuSans',
             'regular': ['DejaVuSans.ttf',
@@ -59,6 +67,13 @@ def _register_unicode_fonts() -> tuple:
         },
     ]
 
+    def _try_register(font_name, path):
+        """Register a TTF/TTC font, handling TrueType Collections."""
+        if path.endswith('.ttc'):
+            pdfmetrics.registerFont(TTFont(font_name, path, subfontIndex=0))
+        else:
+            pdfmetrics.registerFont(TTFont(font_name, path))
+
     for family in font_families:
         name = family['name']
         bold_name = f'{name}-Bold'
@@ -67,7 +82,7 @@ def _register_unicode_fonts() -> tuple:
 
         for path in family['regular']:
             try:
-                pdfmetrics.registerFont(TTFont(name, path))
+                _try_register(name, path)
                 reg_ok = True
                 break
             except Exception:
@@ -78,7 +93,7 @@ def _register_unicode_fonts() -> tuple:
 
         for path in family['bold']:
             try:
-                pdfmetrics.registerFont(TTFont(bold_name, path))
+                _try_register(bold_name, path)
                 bold_ok = True
                 break
             except Exception:
@@ -115,8 +130,9 @@ class PatternPDFService:
     MARGIN = 1.5 * cm
 
     # Brand info
-    SITE_URL = "ourstitch.com"
+    SITE_URL = "https://ourstitch.com"
     SITE_NAME = "OurStitch"
+    SITE_CTA = "Create your free pattern at https://ourstitch.com"
 
     @staticmethod
     def generate_pdf(project, logo_path: str = None, render_mode: dict = None) -> bytes:
@@ -247,8 +263,8 @@ class PatternPDFService:
         t0 = time.perf_counter()
         doc.build(
             elements,
-            onFirstPage=lambda c, d: PatternPDFService._add_footer(c, d, 1, total_pages, logo_path),
-            onLaterPages=lambda c, d: PatternPDFService._add_footer(c, d, d.page, total_pages, logo_path)
+            onFirstPage=lambda c, d: PatternPDFService._add_footer(c, d, 1, total_pages, logo_path, project.id),
+            onLaterPages=lambda c, d: PatternPDFService._add_footer(c, d, d.page, total_pages, logo_path, project.id)
         )
         logger.info('[pdf] doc.build (ReportLab): %.3fs', time.perf_counter() - t0)
 
@@ -631,12 +647,36 @@ class PatternPDFService:
             }
 
         # Page header
-        if page_def['total_rows'] > 1 or page_def['total_cols'] > 1:
-            title = f"Pattern Grid (Row {page_def['row']} of {page_def['total_rows']}, Column {page_def['col']} of {page_def['total_cols']})"
+        multi_page = page_def['total_rows'] > 1 or page_def['total_cols'] > 1
+        if multi_page:
+            title = (f"Pattern Grid (Row {page_def['row']} of "
+                     f"{page_def['total_rows']}, Column {page_def['col']} "
+                     f"of {page_def['total_cols']})")
         else:
             title = "Pattern Grid"
 
-        elements.append(Paragraph(title, styles['SectionHeader']))
+        title_para = Paragraph(title, styles['SectionHeader'])
+
+        if multi_page:
+            grid_indicator = PatternPDFService._build_grid_indicator(
+                page_def['row'], page_def['col'],
+                page_def['total_rows'], page_def['total_cols'],
+            )
+            header_table = Table(
+                [[title_para, grid_indicator]],
+                colWidths=[None, grid_indicator._width + 2 * mm],
+            )
+            header_table.setStyle(TableStyle([
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 0),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+                ('TOPPADDING', (0, 0), (-1, -1), 0),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+            ]))
+            elements.append(header_table)
+        else:
+            elements.append(title_para)
+
         elements.append(Paragraph(
             f"Stitches: {page_def['label']}",
             styles['PatternSubtitle']
@@ -696,30 +736,84 @@ class PatternPDFService:
         return elements
 
     @staticmethod
-    def _add_footer(canvas, doc, page_num: int, total_pages: int, logo_path: str = None):
-        """Add footer to each page."""
+    def _build_grid_indicator(row: int, col: int, total_rows: int, total_cols: int):
+        """Build a small grid mini-map showing the current page position.
+
+        Returns a Table flowable with the current cell highlighted.
+        """
+        cell_size = 4 * mm
+
+        data = []
+        style_cmds = [
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cccccc')),
+        ]
+
+        for r in range(total_rows):
+            data.append([''] * total_cols)
+
+        # Highlight the current cell
+        c_idx = col - 1
+        r_idx = row - 1
+        style_cmds.append(
+            ('BACKGROUND', (c_idx, r_idx), (c_idx, r_idx), colors.HexColor('#5b6abf'))
+        )
+
+        grid_table = Table(
+            data,
+            colWidths=[cell_size] * total_cols,
+            rowHeights=[cell_size] * total_rows,
+        )
+        grid_table.setStyle(TableStyle(style_cmds))
+        grid_table._width = total_cols * cell_size
+        return grid_table
+
+    @staticmethod
+    def _add_footer(canvas, doc, page_num: int, total_pages: int,
+                    logo_path: str = None, project_id: str = None):
+        """Add footer with logo, call-to-action link, and page number."""
         canvas.saveState()
 
         width, height = PatternPDFService.PAGE_SIZE
         footer_y = 1 * cm
 
-        # Left side: logo and URL
+        # Left side: logo + call-to-action
         if logo_path:
             try:
                 canvas.drawImage(logo_path, PatternPDFService.MARGIN, footer_y - 2 * mm,
                                width=6 * mm, height=6 * mm, preserveAspectRatio=True)
                 text_x = PatternPDFService.MARGIN + 8 * mm
-            except:
+            except Exception:
                 text_x = PatternPDFService.MARGIN
         else:
             text_x = PatternPDFService.MARGIN
 
+        cta = PatternPDFService.SITE_CTA
         canvas.setFont(UNICODE_FONT, 8)
-        canvas.setFillColor(colors.gray)
-        canvas.drawString(text_x, footer_y, PatternPDFService.SITE_URL)
+        canvas.setFillColor(colors.HexColor('#5b6abf'))
+        canvas.drawString(text_x, footer_y, cta)
+
+        # Build tracked URL with UTM parameters
+        tracked_url = (
+            f"{PatternPDFService.SITE_URL}"
+            f"?utm_source=pdf&utm_medium=pattern&utm_campaign=pattern_export"
+        )
+        if project_id:
+            tracked_url += f"&utm_content={project_id}"
+
+        # Make the CTA text a clickable link
+        cta_width = canvas.stringWidth(cta, UNICODE_FONT, 8)
+        canvas.linkURL(
+            tracked_url,
+            (text_x, footer_y - 1 * mm, text_x + cta_width, footer_y + 3 * mm),
+        )
 
         # Right side: page number
         page_text = f"Page {page_num} / {total_pages}"
+        canvas.setFillColor(colors.gray)
         canvas.drawRightString(width - PatternPDFService.MARGIN, footer_y, page_text)
 
         # Line above footer
