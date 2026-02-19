@@ -59,12 +59,10 @@ def view(project_id):
         overview_base64 = PatternRenderer.image_to_base64(overview_pattern)
         logger.info('[print/view] overview render + base64: %.3fs', time.perf_counter() - t0)
 
-        # Page 2: Legend with color/thread info
+        # Page 2: Legend with color/thread info (single pass)
         t0 = time.perf_counter()
-        legend = PatternRenderer.generate_legend(
-            state,
-            project.width,
-            project.height
+        legend, legend_by_stitch = PatternRenderer.generate_legends(
+            state, project.width, project.height
         )
         total_stitches = sum(color['count'] for color in legend)
 
@@ -85,13 +83,6 @@ def view(project_id):
         legend_by_color = sorted(
             color_agg.values(),
             key=lambda x: (x['vendor'] or '', x['code'] or '')
-        )
-
-        # Legend grouped by stitch type (used for Lines table)
-        legend_by_stitch = PatternRenderer.generate_legend_by_stitch_type(
-            state,
-            project.width,
-            project.height
         )
         logger.info('[print/view] legend generation: %.3fs', time.perf_counter() - t0)
         # Stitch preview rendering disabled — by-stitch tables are commented out.

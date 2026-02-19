@@ -676,25 +676,19 @@ class PatternRenderer:
         image[:] = new_image
 
     @staticmethod
-    def generate_legend(state: Dict, width: int, height: int) -> List[Dict]:
+    def generate_legends(state: Dict, width: int, height: int) -> Tuple[List[Dict], Dict[str, List[Dict]]]:
         """
-        Generate legend data with color and stitch type usage statistics.
-
-        Uses per-color symbols from the palette (one symbol per thread color).
-        Each unique (color, stitch_type) combination is a separate legend entry.
-
-        Args:
-            state: Project state with layers and palette
-            width: Grid width
-            height: Grid height
+        Generate both legend formats in a single pass over all cells.
 
         Returns:
-            List of dicts with color info, stitch type, symbol, and usage count
+            (legend, legend_by_stitch) where:
+            - legend: flat list of dicts with color info, stitch type, symbol, count
+            - legend_by_stitch: dict mapping stitch category → list of color entries
         """
         palette = state['palette']
         layers = state['layers']
 
-        # Count usage per (color, stitch_type) combination
+        # Single pass: count usage per (palette_index, stitch_type)
         combo_counts = {}
 
         for layer in layers:
@@ -705,14 +699,11 @@ class PatternRenderer:
             if layer['type'] != 'raster':
                 continue
 
-            cells = layer.get('cells', {})
-
-            for cell_stitches in cells.values():
+            for cell_stitches in layer.get('cells', {}).values():
                 stitch_list = cell_stitches if isinstance(cell_stitches, list) else [cell_stitches]
                 for cell_data in stitch_list:
                     palette_index = cell_data.get('paletteIndex', 0)
                     stitch_type = cell_data.get('stitchType', 'full')
-
                     if palette_index < len(palette):
                         key = (palette_index, stitch_type)
                         combo_counts[key] = combo_counts.get(key, 0) + 1
@@ -724,89 +715,11 @@ class PatternRenderer:
                     key = (palette_index, stitch_type)
                     combo_counts[key] = combo_counts.get(key, 0) + 1
 
-        # Build legend entries using per-color palette symbols
+        # Build both outputs from the same counts
         legend = []
-        for (palette_index, stitch_type), count in combo_counts.items():
-            if count == 0:
-                continue
-
-            color = palette[palette_index]
-            symbol = color.get('symbol', '?')
-            defn = STITCH_TYPES.get(stitch_type, {})
-            category = defn.get('category', 'Full Cross')
-            stitch_icon = defn.get('icon', '✕')
-
-            legend.append({
-                'paletteIndex': palette_index,
-                'stitchType': stitch_type,
-                'stitchCategory': category,
-                'stitchIcon': stitch_icon,
-                'symbol': symbol,
-                'rgbHex': color.get('rgbHex', '#000000'),
-                'rgb': color.get('rgb', (0, 0, 0)),
-                'vendor': color.get('vendor'),
-                'code': color.get('code'),
-                'name': color.get('name', f'Color {palette_index + 1}'),
-                'count': count
-            })
-
-        # Sort by vendor code for easy thread organizer lookup
-        legend.sort(key=lambda x: (x['vendor'] or '', x['code'] or ''))
-
-        return legend
-
-    @staticmethod
-    def generate_legend_by_stitch_type(state: Dict, width: int, height: int) -> Dict[str, List[Dict]]:
-        """
-        Generate legend data grouped by stitch type category.
-
-        Uses per-color symbols from the palette (one symbol per thread color).
-
-        Args:
-            state: Project state with layers and palette
-            width: Grid width
-            height: Grid height
-
-        Returns:
-            Dict mapping stitch category names to lists of color entries
-        """
-        palette = state['palette']
-        layers = state['layers']
-
-        # Count usage per (color, stitch_type) combination
-        color_stitch_counts = {}
-
-        for layer in layers:
-            if not layer.get('visible', True):
-                continue
-            if not layer.get('activeForExport', True):
-                continue
-            if layer['type'] != 'raster':
-                continue
-
-            cells = layer.get('cells', {})
-
-            for cell_stitches in cells.values():
-                stitch_list = cell_stitches if isinstance(cell_stitches, list) else [cell_stitches]
-                for cell_data in stitch_list:
-                    palette_index = cell_data.get('paletteIndex', 0)
-                    stitch_type = cell_data.get('stitchType', 'full')
-
-                    if palette_index < len(palette):
-                        key = (palette_index, stitch_type)
-                        color_stitch_counts[key] = color_stitch_counts.get(key, 0) + 1
-
-            for path in layer.get('paths', []):
-                palette_index = path.get('paletteIndex', 0)
-                stitch_type = path.get('stitchType', 'line')
-                if palette_index < len(palette):
-                    key = (palette_index, stitch_type)
-                    color_stitch_counts[key] = color_stitch_counts.get(key, 0) + 1
-
-        # Group by stitch category, using per-color palette symbols
         grouped = {cat: [] for cat in STITCH_CATEGORY_ORDER}
 
-        for (palette_index, stitch_type), count in color_stitch_counts.items():
+        for (palette_index, stitch_type), count in combo_counts.items():
             if count == 0:
                 continue
 
@@ -819,6 +732,7 @@ class PatternRenderer:
             entry = {
                 'paletteIndex': palette_index,
                 'stitchType': stitch_type,
+                'stitchCategory': category,
                 'stitchIcon': stitch_icon,
                 'symbol': symbol,
                 'rgbHex': color.get('rgbHex', '#000000'),
@@ -829,16 +743,30 @@ class PatternRenderer:
                 'count': count
             }
 
+            legend.append(entry)
             if category in grouped:
                 grouped[category].append(entry)
 
-        # Sort each category by vendor code for easy thread lookup
+        sort_key = lambda x: (x['vendor'] or '', x['code'] or '')
+        legend.sort(key=sort_key)
         for category in grouped:
-            grouped[category].sort(key=lambda x: (x['vendor'] or '', x['code'] or ''))
+            grouped[category].sort(key=sort_key)
 
         # Remove empty categories
         grouped = {k: v for k, v in grouped.items() if v}
 
+        return legend, grouped
+
+    @staticmethod
+    def generate_legend(state: Dict, width: int, height: int) -> List[Dict]:
+        """Generate flat legend list. Delegates to generate_legends()."""
+        legend, _ = PatternRenderer.generate_legends(state, width, height)
+        return legend
+
+    @staticmethod
+    def generate_legend_by_stitch_type(state: Dict, width: int, height: int) -> Dict[str, List[Dict]]:
+        """Generate legend grouped by stitch type. Delegates to generate_legends()."""
+        _, grouped = PatternRenderer.generate_legends(state, width, height)
         return grouped
 
     @staticmethod

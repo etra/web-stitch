@@ -166,17 +166,12 @@ class PatternPDFService:
         state = ProjectService.assemble_state(project)
         logger.info('[pdf] assemble_state: %.3fs', time.perf_counter() - t0)
 
-        # Generate pattern data
+        # Generate pattern data (single pass over all cells)
         t0 = time.perf_counter()
-        legend = PatternRenderer.generate_legend(
+        legend, legend_by_stitch = PatternRenderer.generate_legends(
             state, project.width, project.height
         )
         total_stitches = sum(color['count'] for color in legend)
-
-        # Legend grouped by stitch type
-        legend_by_stitch = PatternRenderer.generate_legend_by_stitch_type(
-            state, project.width, project.height
-        )
         logger.info('[pdf] legend generation: %.3fs', time.perf_counter() - t0)
 
         # Page 1: Overview
@@ -201,35 +196,39 @@ class PatternPDFService:
         logger.info('[pdf] rendering %d pattern pages...', len(page_definitions))
 
         t_pages = time.perf_counter()
-        shared_stamp_cache = {}
         num_pages = len(page_definitions)
-        app = current_app._get_current_object()
-        worker_count = min(os.cpu_count() or 4, num_pages, 8)
 
-        # Render page images in parallel (heavy numpy/OpenCV work releases GIL)
-        def _render_page_image(page_def):
+        # Pre-warm stamp cache in main thread — avoids redundant PIL rendering
+        # across pages. Each unique (symbol, color, font_size, stitch_type) combo
+        # is rendered once and shared by all pages.
+        cell_size_pdf = 30
+        t0 = time.perf_counter()
+        shared_stamp_cache = PatternPDFService._prewarm_stamp_cache(
+            state, cell_size_pdf, render_mode
+        )
+        logger.info('[pdf] stamp cache pre-warmed: %d stamps in %.3fs',
+                     len(shared_stamp_cache), time.perf_counter() - t0)
+
+        # Render page images sequentially with pre-warmed cache
+        app = current_app._get_current_object()
+        page_images = []
+        for page_def in page_definitions:
             with app.app_context():
                 t_page = time.perf_counter()
                 img = PatternRenderer.render_symbol_page(
                     state, project.width, project.height,
                     page_def['x_start'], page_def['y_start'],
                     page_def['x_end'], page_def['y_end'],
-                    cell_size=30, stamp_cache=shared_stamp_cache,
+                    cell_size=cell_size_pdf, stamp_cache=shared_stamp_cache,
                     **render_mode
                 )
                 logger.info('[pdf]   page %d/%d rendered: %.3fs',
                              page_def['page_num'], num_pages,
                              time.perf_counter() - t_page)
-                return img
+                page_images.append(img)
 
-        if worker_count > 1:
-            with ThreadPoolExecutor(max_workers=worker_count) as executor:
-                page_images = list(executor.map(_render_page_image, page_definitions))
-        else:
-            page_images = [_render_page_image(pd) for pd in page_definitions]
-
-        logger.info('[pdf] all page images rendered: %.3fs (%d workers)',
-                     time.perf_counter() - t_pages, worker_count)
+        logger.info('[pdf] all page images rendered: %.3fs',
+                     time.perf_counter() - t_pages)
 
         # Build PDF elements sequentially (must maintain page order)
         for page_def, page_image in zip(page_definitions, page_images):
@@ -731,6 +730,59 @@ class PatternPDFService:
         canvas.restoreState()
 
     @staticmethod
+    def _prewarm_stamp_cache(state: dict, cell_size: int, render_mode: dict) -> dict:
+        """Pre-render all unique symbol stamps needed for the pattern.
+
+        Scans all exportable cells once to collect unique
+        (symbol, color, font_size, stitch_type) combinations, then renders
+        each stamp. The returned cache dict is passed to every page render
+        call so no page needs to create stamps on the fly.
+        """
+        from stitch.services.pattern_renderer import (
+            PatternRenderer, SYMBOL_PLACEMENTS, _symbol_font_size
+        )
+
+        if not render_mode.get('show_symbol', True):
+            return {}
+
+        palette = state['palette']
+        show_color = render_mode.get('show_color', False)
+        keys_needed = set()
+
+        for layer in state['layers']:
+            if not layer.get('visible', True):
+                continue
+            if not layer.get('activeForExport', True):
+                continue
+            if layer['type'] != 'raster':
+                continue
+
+            for cell_stitches in layer.get('cells', {}).values():
+                stitch_list = cell_stitches if isinstance(cell_stitches, list) else [cell_stitches]
+                for cell_data in stitch_list:
+                    palette_index = cell_data.get('paletteIndex', 0)
+                    if palette_index >= len(palette):
+                        continue
+
+                    rgb = PatternRenderer._resolve_color(palette[palette_index])
+                    symbol = palette[palette_index].get('symbol', '?')
+                    symbol_color = PatternRenderer._get_contrasting_color(rgb) if show_color else (0, 0, 0)
+                    stitch_type = cell_data.get('stitchType', 'full')
+                    font_size = _symbol_font_size(cell_size, stitch_type)
+
+                    keys_needed.add((symbol, symbol_color, font_size, stitch_type))
+
+        cache = {}
+        for key in keys_needed:
+            symbol, symbol_color, font_size, stitch_type = key
+            cx, cy, _scale = SYMBOL_PLACEMENTS.get(stitch_type, (0.5, 0.5, 0.8))
+            cache[key] = PatternRenderer._render_symbol_stamp(
+                symbol, symbol_color, font_size, cell_size, cx, cy
+            )
+
+        return cache
+
+    @staticmethod
     def _numpy_to_image_buffer(img_array) -> io.BytesIO:
         """Convert numpy array to PNG image buffer."""
         from PIL import Image as PILImage
@@ -739,7 +791,7 @@ class PatternPDFService:
         pil_image = PILImage.fromarray(img_array.astype('uint8'))
 
         buffer = io.BytesIO()
-        pil_image.save(buffer, format='PNG', optimize=True)
+        pil_image.save(buffer, format='PNG', compress_level=1)
         buffer.seek(0)
 
         return buffer
