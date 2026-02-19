@@ -799,7 +799,7 @@ class PatternPDFService:
         # Build tracked URL with UTM parameters
         tracked_url = (
             f"{PatternPDFService.SITE_URL}"
-            f"?utm_source=pdf&utm_medium=pattern&utm_campaign=pattern_export"
+            f"?utm_source=pdf&utm_medium=document&utm_campaign=pattern_export"
         )
         if project_id:
             tracked_url += f"&utm_content={project_id}"

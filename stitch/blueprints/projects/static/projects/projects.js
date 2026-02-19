@@ -405,6 +405,16 @@ function initColorSelection(maxColors) {
 }
 
 /* =============================================================================
+   GA4 Event Tracking — Project Creation Funnel
+   ============================================================================= */
+
+function trackEvent(eventName, params) {
+    if (typeof gtag === 'function') {
+        gtag('event', eventName, params || {});
+    }
+}
+
+/* =============================================================================
    Wizard Create Step - Creation Mode & Image Modal
    ============================================================================= */
 
@@ -524,6 +534,7 @@ function initCreateStep(config) {
 
     function selectMode(mode) {
         creationModeInput.value = mode;
+        trackEvent('wizard_mode_select', { mode: mode });
         modeEmpty.classList.toggle('selected', mode === 'empty');
         modeImage.classList.toggle('selected', mode === 'image');
         if (modeSmartImage) modeSmartImage.classList.toggle('selected', mode === 'smart_image');
@@ -587,6 +598,7 @@ function initCreateStep(config) {
 
     function showSmartStep(step) {
         swStep = step;
+        trackEvent('wizard_smart_step', { step: step });
         swStepUpload.style.display = step === 'upload' ? '' : 'none';
         swStepPosition.style.display = step === 'position' ? '' : 'none';
         swStepPreview.style.display = step === 'preview' ? '' : 'none';
@@ -623,6 +635,13 @@ function initCreateStep(config) {
             swConfirmedDespeckle = swDespeckle.value;
             swConfirmedBackstitch = swBackstitch.checked;
             swConfirmedDithering = swDithering.value;
+            trackEvent('wizard_smart_confirm', {
+                max_colors: swConfirmedMaxColors,
+                edge_detail: swConfirmedEdgeDetail,
+                despeckle: swConfirmedDespeckle,
+                backstitch: swConfirmedBackstitch ? 'on' : 'off',
+                dithering: swConfirmedDithering,
+            });
             selectMode('smart_image');
             smartConfigSummary.style.display = '';
             smartConfigPreview.src = swPreviewData || '';
@@ -944,6 +963,7 @@ function initCreateStep(config) {
 
     function showModalStep(step) {
         modalStep = step;
+        trackEvent('wizard_image_step', { step: step });
         stepUpload.style.display = step === 'upload' ? '' : 'none';
         stepPosition.style.display = step === 'position' ? '' : 'none';
         stepColors.style.display = step === 'colors' ? '' : 'none';
@@ -985,6 +1005,7 @@ function initCreateStep(config) {
                 drawPreviewCanvas(configPreviewImg, quantized);
             }
 
+            trackEvent('wizard_image_confirm', { max_colors: mc });
             selectMode('image');
             imageConfigSummary.style.display = '';
             imageFilenameEl.textContent = selectedFile ? selectedFile.name : '—';
@@ -1373,6 +1394,7 @@ function initCreateStep(config) {
 
     createForm.addEventListener('submit', function(e) {
         var mode = creationModeInput.value;
+        trackEvent('wizard_create', { mode: mode });
 
         if (mode === 'image') {
             e.preventDefault();

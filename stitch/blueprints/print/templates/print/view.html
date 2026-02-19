@@ -1,6 +1,23 @@
 {% extends "base.html" %}
 
-{% block title %}{{ project.name }} - Pattern - OurStitch{% endblock %}
+{% block title %}{{ project.name }} — Free Cross-Stitch Pattern | OurStitch{% endblock %}
+
+{% block meta_description %}{{ project.name }} — {{ project.width }}×{{ project.height }} cross-stitch pattern with {{ legend_by_color | length }} colors. View the full color chart, symbol legend, and download a free printable PDF.{% endblock %}
+
+{% block canonical %}<link rel="canonical" href="https://ourstitch.com/print/{{ project.id }}">{% endblock %}
+
+{% block og_title %}{{ project.name }} — Free Cross-Stitch Pattern{% endblock %}
+{% block og_description %}{{ project.width }}×{{ project.height }} stitches · {{ legend_by_color | length }} colors · {{ total_stitches }} stitches. Free printable PDF with symbol chart and color legend.{% endblock %}
+{% block og_image %}<meta property="og:image" content="https://ourstitch.com/projects/{{ project.id }}/thumbnail-fill">
+<meta property="og:image:width" content="450">
+<meta property="og:image:height" content="250">
+<meta property="og:image:alt" content="Cross-stitch pattern preview: {{ project.name }}">{% endblock %}
+{% block og_url %}https://ourstitch.com/print/{{ project.id }}{% endblock %}
+
+{% block twitter_title %}{{ project.name }} — Free Cross-Stitch Pattern{% endblock %}
+{% block twitter_description %}{{ project.width }}×{{ project.height }} stitches · {{ legend_by_color | length }} colors. Free printable PDF.{% endblock %}
+{% block twitter_image %}<meta name="twitter:image" content="https://ourstitch.com/projects/{{ project.id }}/thumbnail-fill">
+<meta name="twitter:image:alt" content="Cross-stitch pattern preview: {{ project.name }}">{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('print.static', filename='print/print.css') }}">
@@ -92,7 +109,7 @@
                     </a>
                     {% endif %}
                     {% if session.get('user_id') %}
-                    <form method="POST" action="{{ url_for('projects.clone', project_id=project.id) }}" class="m-0">
+                    <form method="POST" action="{{ url_for('projects.clone', project_id=project.id) }}" class="m-0" id="clone-form">
                         <button type="submit" class="btn btn-outline-primary">
                             <i class="bi bi-copy me-1"></i>Clone to My Projects
                         </button>
@@ -480,6 +497,11 @@
      * per page+display-mode combo.
      */
 
+    // --- GA4 tracking helper ---
+    function trackEvent(name, params) {
+        if (typeof gtag === 'function') gtag('event', name, params || {});
+    }
+
     // --- Display state ---
     let displayMode = 'chart';
     let showLines = true;
@@ -544,6 +566,7 @@
                 img.src = data.image;
                 img.classList.remove('d-none');
                 loadedPages.add(pageNum);
+                trackEvent('pattern_page_view', { page_num: pageNum, display_mode: displayMode });
             }
         } catch (error) {
             console.error('Failed to load pattern page ' + pageNum + ':', error);
@@ -579,6 +602,13 @@
         });
     });
 
+    // --- Main tab tracking ---
+    document.querySelectorAll('#patternTabs button[data-bs-toggle="tab"]').forEach(function(btn) {
+        btn.addEventListener('shown.bs.tab', function() {
+            trackEvent('pattern_tab_view', { tab: this.id.replace('-tab', '') });
+        });
+    });
+
     // Auto-load the first page when the Pattern tab is shown
     document.getElementById('pattern-tab').addEventListener('shown.bs.tab', function() {
         var firstBtn = document.querySelector('#patternSubTabs button[data-page-num]');
@@ -589,17 +619,18 @@
 
     // --- Inline controls ---
     document.getElementById('modeChart').addEventListener('change', function() {
-        if (this.checked) { displayMode = 'chart'; reloadVisiblePage(); }
+        if (this.checked) { displayMode = 'chart'; trackEvent('pattern_display_mode', { mode: 'chart' }); reloadVisiblePage(); }
     });
     document.getElementById('modeChartBW').addEventListener('change', function() {
-        if (this.checked) { displayMode = 'chart-bw'; reloadVisiblePage(); }
+        if (this.checked) { displayMode = 'chart-bw'; trackEvent('pattern_display_mode', { mode: 'chart-bw' }); reloadVisiblePage(); }
     });
     document.getElementById('modeStitch').addEventListener('change', function() {
-        if (this.checked) { displayMode = 'stitch'; reloadVisiblePage(); }
+        if (this.checked) { displayMode = 'stitch'; trackEvent('pattern_display_mode', { mode: 'stitch' }); reloadVisiblePage(); }
     });
     document.getElementById('lineToggle').addEventListener('click', function() {
         showLines = !showLines;
         this.classList.toggle('active', showLines);
+        trackEvent('pattern_display_mode', { mode: 'lines_' + (showLines ? 'on' : 'off') });
         reloadVisiblePage();
     });
 
@@ -654,6 +685,18 @@
 
     function updatePdfLink() {
         pdfDownloadBtn.href = pdfBaseUrl + '?' + buildDisplayQuery();
+    }
+
+    pdfDownloadBtn.addEventListener('click', function() {
+        trackEvent('pattern_pdf_download', { display_mode: displayMode, show_lines: showLines ? 'on' : 'off' });
+    });
+
+    // Clone button tracking
+    var cloneForm = document.getElementById('clone-form');
+    if (cloneForm) {
+        cloneForm.addEventListener('submit', function() {
+            trackEvent('pattern_clone', { project_id: projectId });
+        });
     }
 
     function loadPdfPreview() {

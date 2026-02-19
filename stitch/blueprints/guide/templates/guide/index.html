@@ -4,6 +4,9 @@
 
 {% block meta_description %}Learn how to use OurStitch: create cross-stitch projects, use the editor, work with layers and images, and export patterns to PDF.{% endblock %}
 
+{% block canonical %}<link rel="canonical" href="https://ourstitch.com/guide/">{% endblock %}
+{% block og_url %}https://ourstitch.com/guide/{% endblock %}
+
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('guide.static', filename='guide/guide.css') }}">
 {% endblock %}

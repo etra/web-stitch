@@ -4,6 +4,9 @@
 
 {% block meta_description %}Learn how to preview, navigate, and export your cross-stitch pattern to PDF in OurStitch.{% endblock %}
 
+{% block canonical %}<link rel="canonical" href="https://ourstitch.com/guide/print">{% endblock %}
+{% block og_url %}https://ourstitch.com/guide/print{% endblock %}
+
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('guide.static', filename='guide/guide.css') }}">
 {% endblock %}

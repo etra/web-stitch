@@ -7,6 +7,7 @@
 {% block canonical %}
 <link rel="canonical" href="{{ seo.canonical_url }}">
 {% endblock %}
+{% block og_url %}{{ seo.canonical_url }}{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/community.css') }}">
