@@ -315,22 +315,20 @@ class SmartImageService:
     def _atkinson_dither(image_1x, matched, palette_map, grid_w, grid_h):
         """Apply Atkinson error-diffusion dithering.
 
-        For each pixel: find nearest vendor color using redmean distance,
-        compute error, distribute 1/8 of error to 6 Atkinson neighbors.
-        Returns cells dict with all full stitches.
+        For each pixel: find nearest vendor color using vectorized redmean
+        distance, compute error, distribute 1/8 of error to 6 Atkinson
+        neighbors.  Returns cells dict with all full stitches.
         """
-        # Build vendor RGB list and reverse map: index → pc_id
-        vendor_rgbs = []
-        index_to_pc_id = {}
+        # Build vendor RGB array (N, 3) and pc_id list for index lookup
+        pc_ids = []
+        vendor_list = []
         for color_obj, pc_id, _symbol in matched:
-            idx = len(vendor_rgbs)
-            vendor_rgbs.append(ColorMatcher.hex_to_rgb(color_obj.hex))
-            index_to_pc_id[idx] = pc_id
+            vendor_list.append(ColorMatcher.hex_to_rgb(color_obj.hex))
+            pc_ids.append(pc_id)
+        vendor_arr = np.array(vendor_list, dtype=np.float64)  # (N, 3)
 
         img = image_1x.astype(np.float64)
         cells = {}
-
-        ATKINSON_OFFSETS = [(1, 0), (2, 0), (-1, 1), (0, 1), (1, 1), (0, 2)]
 
         for y in range(grid_h):
             for x in range(grid_w):
@@ -338,50 +336,66 @@ class SmartImageService:
                 g = max(0.0, min(255.0, img[y, x, 1]))
                 b = max(0.0, min(255.0, img[y, x, 2]))
 
-                # Skip near-white
                 if r > 250 and g > 250 and b > 250:
                     continue
 
-                current_rgb = (int(round(r)), int(round(g)), int(round(b)))
+                # Vectorized redmean distance against all vendor colors
+                dr = r - vendor_arr[:, 0]
+                dg = g - vendor_arr[:, 1]
+                db = b - vendor_arr[:, 2]
+                rmean = (r + vendor_arr[:, 0]) * 0.5
+                dists = (2 + rmean / 256) * dr * dr + 4 * dg * dg + (2 + (255 - rmean) / 256) * db * db
+                best_idx = int(np.argmin(dists))
 
-                # Find nearest vendor color via redmean distance
-                best_idx = 0
-                best_dist = float('inf')
-                for i, vrgb in enumerate(vendor_rgbs):
-                    d = ColorMatcher.redmean_distance(current_rgb, vrgb)
-                    if d < best_dist:
-                        best_dist = d
-                        best_idx = i
-
-                matched_rgb = vendor_rgbs[best_idx]
-                pc_id = index_to_pc_id[best_idx]
-
-                # Compute error
-                err_r = r - matched_rgb[0]
-                err_g = g - matched_rgb[1]
-                err_b = b - matched_rgb[2]
+                mr, mg, mb = vendor_arr[best_idx]
 
                 # Distribute error/8 to 6 Atkinson neighbors (total 6/8 = 75%)
-                for dx, dy in ATKINSON_OFFSETS:
-                    nx, ny = x + dx, y + dy
-                    if 0 <= nx < grid_w and 0 <= ny < grid_h:
-                        img[ny, nx, 0] += err_r / 8.0
-                        img[ny, nx, 1] += err_g / 8.0
-                        img[ny, nx, 2] += err_b / 8.0
+                err_r = (r - mr) * 0.125
+                err_g = (g - mg) * 0.125
+                err_b = (b - mb) * 0.125
+                if x + 1 < grid_w:
+                    img[y, x + 1, 0] += err_r
+                    img[y, x + 1, 1] += err_g
+                    img[y, x + 1, 2] += err_b
+                if x + 2 < grid_w:
+                    img[y, x + 2, 0] += err_r
+                    img[y, x + 2, 1] += err_g
+                    img[y, x + 2, 2] += err_b
+                if y + 1 < grid_h:
+                    if x - 1 >= 0:
+                        img[y + 1, x - 1, 0] += err_r
+                        img[y + 1, x - 1, 1] += err_g
+                        img[y + 1, x - 1, 2] += err_b
+                    img[y + 1, x, 0] += err_r
+                    img[y + 1, x, 1] += err_g
+                    img[y + 1, x, 2] += err_b
+                    if x + 1 < grid_w:
+                        img[y + 1, x + 1, 0] += err_r
+                        img[y + 1, x + 1, 1] += err_g
+                        img[y + 1, x + 1, 2] += err_b
+                if y + 2 < grid_h:
+                    img[y + 2, x, 0] += err_r
+                    img[y + 2, x, 1] += err_g
+                    img[y + 2, x, 2] += err_b
 
-                cells[f"{x},{y}"] = [{'color': pc_id, 'stitch': 'full'}]
+                cells[f"{x},{y}"] = [{'color': pc_ids[best_idx], 'stitch': 'full'}]
 
         return cells
 
     @staticmethod
     def _refine_edges(cells, edge_mask, detail_image, matched, grid_w, grid_h):
-        """Replace dithered full stitches at edge cells with quarter stitches from 2x detail."""
-        vendor_colors = []
-        vendor_lab_cache = {}
-        pc_id_by_color_id = {}
+        """Replace dithered full stitches at edge cells with quarter stitches from 2x detail.
+
+        Uses vectorized redmean distance for fast per-quadrant color matching.
+        """
+        pc_ids = []
+        vendor_list = []
         for color_obj, pc_id, _symbol in matched:
-            vendor_colors.append(color_obj)
-            pc_id_by_color_id[color_obj.id] = pc_id
+            vendor_list.append(ColorMatcher.hex_to_rgb(color_obj.hex))
+            pc_ids.append(pc_id)
+        vendor_arr = np.array(vendor_list, dtype=np.float64)  # (N, 3)
+
+        quarter_names = ['quarter-tl', 'quarter-tr', 'quarter-bl', 'quarter-br']
 
         for y in range(grid_h):
             for x in range(grid_w):
@@ -393,26 +407,21 @@ class SmartImageService:
 
                 # Sample 4 quadrants from 2x detail image
                 dy, dx = y * 2, x * 2
-                quadrant_pixels = [
-                    detail_image[dy, dx],         # top-left
-                    detail_image[dy, dx + 1],     # top-right
-                    detail_image[dy + 1, dx],     # bottom-left
-                    detail_image[dy + 1, dx + 1], # bottom-right
-                ]
+                quads = detail_image[dy:dy + 2, dx:dx + 2].reshape(4, 3).astype(np.float64)
 
-                quadrant_pc_ids = []
-                for px in quadrant_pixels:
-                    px_rgb = (int(px[0]), int(px[1]), int(px[2]))
-                    nearest, _ = ColorMatcher.find_nearest_color_de2000(
-                        px_rgb, vendor_colors, vendor_lab_cache
-                    )
-                    quadrant_pc_ids.append(pc_id_by_color_id[nearest.id])
+                # Vectorized redmean: (4, N) distances
+                dr = quads[:, 0:1] - vendor_arr[:, 0]  # (4, N)
+                dg = quads[:, 1:2] - vendor_arr[:, 1]
+                db = quads[:, 2:3] - vendor_arr[:, 2]
+                rmean = (quads[:, 0:1] + vendor_arr[:, 0]) * 0.5
+                dists = (2 + rmean / 256) * dr * dr + 4 * dg * dg + (2 + (255 - rmean) / 256) * db * db
+                best_indices = np.argmin(dists, axis=1)
+
+                quadrant_pc_ids = [pc_ids[i] for i in best_indices]
 
                 if len(set(quadrant_pc_ids)) > 1:
-                    quarter_names = ['quarter-tl', 'quarter-tr', 'quarter-bl', 'quarter-br']
-                    stitches = []
-                    for qname, qpc in zip(quarter_names, quadrant_pc_ids):
-                        stitches.append({'color': qpc, 'stitch': qname})
+                    stitches = [{'color': qpc, 'stitch': qname}
+                                for qname, qpc in zip(quarter_names, quadrant_pc_ids)]
                     cells[key] = stitches
 
     @staticmethod
