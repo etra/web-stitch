@@ -250,7 +250,8 @@ class WizardService:
     def create_smart_image_project(user_id: str, image_file, max_colors: int,
                                    backstitch: bool = True,
                                    edge_detail: str = 'medium',
-                                   despeckle: str = 'light') -> Project:
+                                   despeckle: str = 'light',
+                                   dithering: str = 'off') -> Project:
         """
         Create a project using the smart image conversion pipeline.
 
@@ -261,6 +262,7 @@ class WizardService:
             backstitch: Whether to generate backstitch lines.
             edge_detail: Edge sensitivity — 'low', 'medium', or 'high'.
             despeckle: Despeckling strength — 'off', 'light', or 'heavy'.
+            dithering: Dithering algorithm — 'off' or 'atkinson'.
 
         Returns:
             Created Project instance
@@ -309,6 +311,7 @@ class WizardService:
         result = SmartImageService.convert_image_to_stitches(
             project, image_file, max_colors, vendor=vendor,
             backstitch=backstitch, edge_detail=edge_detail, despeckle=despeckle,
+            dithering=dithering,
         )
 
         # Build palette from the new colors

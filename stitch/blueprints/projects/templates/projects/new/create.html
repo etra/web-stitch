@@ -290,17 +290,24 @@
                         <div class="col">
                             <label class="form-label small">Despeckling</label>
                             <select class="form-select form-select-sm" id="sw-despeckle">
-                                <option value="off">Off</option>
-                                <option value="light" selected>Light</option>
+                                <option value="off" selected>Off</option>
+                                <option value="light">Light</option>
                                 <option value="heavy">Heavy</option>
                             </select>
                         </div>
                         <div class="col">
                             <label class="form-label small">Backstitch</label>
                             <div class="form-check form-switch mt-1">
-                                <input class="form-check-input" type="checkbox" id="sw-backstitch" checked>
+                                <input class="form-check-input" type="checkbox" id="sw-backstitch">
                                 <label class="form-check-label small" for="sw-backstitch">Enabled</label>
                             </div>
+                        </div>
+                        <div class="col">
+                            <label class="form-label small">Dithering</label>
+                            <select class="form-select form-select-sm" id="sw-dithering">
+                                <option value="off">Off</option>
+                                <option value="atkinson" selected>Atkinson</option>
+                            </select>
                         </div>
                     </div>
                 </div>

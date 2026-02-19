@@ -449,6 +449,9 @@ def smart_preview():
     despeckle = request.form.get('despeckle', 'light')
     if despeckle not in ('off', 'light', 'heavy'):
         despeckle = 'light'
+    dithering = request.form.get('dithering', 'off')
+    if dithering not in ('off', 'atkinson'):
+        dithering = 'off'
 
     wizard_data = WizardService.get_wizard_data()
     width = wizard_data.get('width', 70)
@@ -468,6 +471,7 @@ def smart_preview():
         result = SmartImageService.convert_image_to_stitches(
             fake_project, image_file, max_colors, vendor=vendor,
             backstitch=backstitch, edge_detail=edge_detail, despeckle=despeckle,
+            dithering=dithering,
         )
     except Exception as e:
         logging.exception('Smart preview processing error')
@@ -696,12 +700,16 @@ def new_create():
                 si_despeckle = request.form.get('despeckle', 'light')
                 if si_despeckle not in ('off', 'light', 'heavy'):
                     si_despeckle = 'light'
+                si_dithering = request.form.get('dithering', 'off')
+                if si_dithering not in ('off', 'atkinson'):
+                    si_dithering = 'off'
 
                 project = WizardService.create_smart_image_project(
                     user_id, image_file, max_colors,
                     backstitch=si_backstitch,
                     edge_detail=si_edge_detail,
                     despeckle=si_despeckle,
+                    dithering=si_dithering,
                 )
             else:
                 project = WizardService.create_blank_project(user_id)

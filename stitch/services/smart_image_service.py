@@ -39,7 +39,8 @@ class SmartImageService:
                                   vendor: ColorVendor | None = None,
                                   backstitch: bool = True,
                                   edge_detail: str = 'medium',
-                                  despeckle: str = 'light') -> dict:
+                                  despeckle: str = 'light',
+                                  dithering: str = 'off') -> dict:
         """
         Full smart pipeline: load → preprocess → quantize → match → build cells → despeckle → backstitch.
 
@@ -51,6 +52,7 @@ class SmartImageService:
             backstitch: Whether to generate backstitch line segments.
             edge_detail: Edge sensitivity preset — 'low', 'medium', or 'high'.
             despeckle: Despeckling strength — 'off', 'light', or 'heavy'.
+            dithering: Dithering algorithm — 'off' or 'atkinson'.
 
         Returns:
             dict with 'layer' and 'newColors' (same shape as LayerImageService).
@@ -95,11 +97,19 @@ class SmartImageService:
         blurred = cv2.GaussianBlur(gray_1x, (5, 5), 1.4)
         edge_mask = cv2.Canny(blurred, threshold1=canny_low, threshold2=canny_high)
 
-        # Build cells with edge-aware quarter stitches
-        cells = SmartImageService._build_cells_with_edges(
-            image_1x, labels, palette_map, edge_mask, detail_image,
-            matched, grid_w, grid_h
-        )
+        if dithering == 'atkinson':
+            # Dither first for smooth color transitions, then refine edges
+            cells = SmartImageService._atkinson_dither(
+                image_1x, matched, palette_map, grid_w, grid_h
+            )
+            SmartImageService._refine_edges(
+                cells, edge_mask, detail_image, matched, grid_w, grid_h
+            )
+        else:
+            cells = SmartImageService._build_cells_with_edges(
+                image_1x, labels, palette_map, edge_mask, detail_image,
+                matched, grid_w, grid_h
+            )
 
         # Despeckle full-stitch confetti
         despeckle_passes = SmartImageService.DESPECKLE_PRESETS.get(despeckle, 1)
@@ -300,6 +310,110 @@ class SmartImageService:
                         cells[key] = stitches
 
         return cells
+
+    @staticmethod
+    def _atkinson_dither(image_1x, matched, palette_map, grid_w, grid_h):
+        """Apply Atkinson error-diffusion dithering.
+
+        For each pixel: find nearest vendor color using redmean distance,
+        compute error, distribute 1/8 of error to 6 Atkinson neighbors.
+        Returns cells dict with all full stitches.
+        """
+        # Build vendor RGB list and reverse map: index → pc_id
+        vendor_rgbs = []
+        index_to_pc_id = {}
+        for color_obj, pc_id, _symbol in matched:
+            idx = len(vendor_rgbs)
+            vendor_rgbs.append(ColorMatcher.hex_to_rgb(color_obj.hex))
+            index_to_pc_id[idx] = pc_id
+
+        img = image_1x.astype(np.float64)
+        cells = {}
+
+        ATKINSON_OFFSETS = [(1, 0), (2, 0), (-1, 1), (0, 1), (1, 1), (0, 2)]
+
+        for y in range(grid_h):
+            for x in range(grid_w):
+                r = max(0.0, min(255.0, img[y, x, 0]))
+                g = max(0.0, min(255.0, img[y, x, 1]))
+                b = max(0.0, min(255.0, img[y, x, 2]))
+
+                # Skip near-white
+                if r > 250 and g > 250 and b > 250:
+                    continue
+
+                current_rgb = (int(round(r)), int(round(g)), int(round(b)))
+
+                # Find nearest vendor color via redmean distance
+                best_idx = 0
+                best_dist = float('inf')
+                for i, vrgb in enumerate(vendor_rgbs):
+                    d = ColorMatcher.redmean_distance(current_rgb, vrgb)
+                    if d < best_dist:
+                        best_dist = d
+                        best_idx = i
+
+                matched_rgb = vendor_rgbs[best_idx]
+                pc_id = index_to_pc_id[best_idx]
+
+                # Compute error
+                err_r = r - matched_rgb[0]
+                err_g = g - matched_rgb[1]
+                err_b = b - matched_rgb[2]
+
+                # Distribute error/8 to 6 Atkinson neighbors (total 6/8 = 75%)
+                for dx, dy in ATKINSON_OFFSETS:
+                    nx, ny = x + dx, y + dy
+                    if 0 <= nx < grid_w and 0 <= ny < grid_h:
+                        img[ny, nx, 0] += err_r / 8.0
+                        img[ny, nx, 1] += err_g / 8.0
+                        img[ny, nx, 2] += err_b / 8.0
+
+                cells[f"{x},{y}"] = [{'color': pc_id, 'stitch': 'full'}]
+
+        return cells
+
+    @staticmethod
+    def _refine_edges(cells, edge_mask, detail_image, matched, grid_w, grid_h):
+        """Replace dithered full stitches at edge cells with quarter stitches from 2x detail."""
+        vendor_colors = []
+        vendor_lab_cache = {}
+        pc_id_by_color_id = {}
+        for color_obj, pc_id, _symbol in matched:
+            vendor_colors.append(color_obj)
+            pc_id_by_color_id[color_obj.id] = pc_id
+
+        for y in range(grid_h):
+            for x in range(grid_w):
+                if edge_mask[y, x] == 0:
+                    continue
+                key = f"{x},{y}"
+                if key not in cells:
+                    continue
+
+                # Sample 4 quadrants from 2x detail image
+                dy, dx = y * 2, x * 2
+                quadrant_pixels = [
+                    detail_image[dy, dx],         # top-left
+                    detail_image[dy, dx + 1],     # top-right
+                    detail_image[dy + 1, dx],     # bottom-left
+                    detail_image[dy + 1, dx + 1], # bottom-right
+                ]
+
+                quadrant_pc_ids = []
+                for px in quadrant_pixels:
+                    px_rgb = (int(px[0]), int(px[1]), int(px[2]))
+                    nearest, _ = ColorMatcher.find_nearest_color_de2000(
+                        px_rgb, vendor_colors, vendor_lab_cache
+                    )
+                    quadrant_pc_ids.append(pc_id_by_color_id[nearest.id])
+
+                if len(set(quadrant_pc_ids)) > 1:
+                    quarter_names = ['quarter-tl', 'quarter-tr', 'quarter-bl', 'quarter-br']
+                    stitches = []
+                    for qname, qpc in zip(quarter_names, quadrant_pc_ids):
+                        stitches.append({'color': qpc, 'stitch': qname})
+                    cells[key] = stitches
 
     @staticmethod
     def _despeckle(cells, grid_w, grid_h, passes=2):

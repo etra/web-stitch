@@ -455,6 +455,7 @@ function initCreateStep(config) {
     const swEdgeDetail = document.getElementById('sw-edge-detail');
     const swDespeckle = document.getElementById('sw-despeckle');
     const swBackstitch = document.getElementById('sw-backstitch');
+    const swDithering = document.getElementById('sw-dithering');
     const swPosCanvas = document.getElementById('sw-positioner-canvas');
     const swPosScaleSlider = document.getElementById('sw-positioner-scale');
     const swPosScaleLabel = document.getElementById('sw-positioner-scale-label');
@@ -509,8 +510,9 @@ function initCreateStep(config) {
     let swPreviewData = null; // base64 preview from server
     let swConfirmedMaxColors = 32;
     let swConfirmedEdgeDetail = 'medium';
-    let swConfirmedDespeckle = 'light';
-    let swConfirmedBackstitch = true;
+    let swConfirmedDespeckle = 'off';
+    let swConfirmedBackstitch = false;
+    let swConfirmedDithering = 'atkinson';
 
     // Smart image positioner state
     let swImgX = 0, swImgY = 0, swImgScale = 1.0;
@@ -620,6 +622,7 @@ function initCreateStep(config) {
             swConfirmedEdgeDetail = swEdgeDetail.value;
             swConfirmedDespeckle = swDespeckle.value;
             swConfirmedBackstitch = swBackstitch.checked;
+            swConfirmedDithering = swDithering.value;
             selectMode('smart_image');
             smartConfigSummary.style.display = '';
             smartConfigPreview.src = swPreviewData || '';
@@ -884,6 +887,7 @@ function initCreateStep(config) {
         fd.append('edge_detail', swEdgeDetail.value);
         fd.append('despeckle', swDespeckle.value);
         fd.append('backstitch', swBackstitch.checked ? 'true' : 'false');
+        fd.append('dithering', swDithering.value);
 
         fetch('/projects/new/smart-preview', {
             method: 'POST',
@@ -1416,6 +1420,7 @@ function initCreateStep(config) {
             fd.set('edge_detail', swConfirmedEdgeDetail);
             fd.set('despeckle', swConfirmedDespeckle);
             fd.set('backstitch', swConfirmedBackstitch ? 'true' : 'false');
+            fd.set('dithering', swConfirmedDithering);
             fd.append('image', swComposedBlob, 'composed.png');
 
             fetch(createForm.action || window.location.href, {

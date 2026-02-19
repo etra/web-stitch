@@ -190,6 +190,21 @@ class ColorMatcher:
         return matched_colors
 
     @staticmethod
+    def redmean_distance(rgb1: Tuple[int, int, int], rgb2: Tuple[int, int, int]) -> float:
+        """Perceptually-weighted color distance using redmean formula.
+
+        Faster than Delta E 2000 and suitable for per-pixel dithering.
+        Formula weights R/G/B channels based on mean red value.
+        """
+        rmean = (rgb1[0] + rgb2[0]) / 2.0
+        dr = rgb1[0] - rgb2[0]
+        dg = rgb1[1] - rgb2[1]
+        db = rgb1[2] - rgb2[2]
+        return ((2 + rmean / 256) * dr * dr
+                + 4 * dg * dg
+                + (2 + (255 - rmean) / 256) * db * db) ** 0.5
+
+    @staticmethod
     def delta_e_2000(lab1: Tuple[float, float, float], lab2: Tuple[float, float, float]) -> float:
         """
         Calculate CIEDE2000 color difference between two standard LAB colors.
