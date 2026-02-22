@@ -1,0 +1,15 @@
+{# Mini step indicator for From Image sub-flow #}
+{# Parameters:
+   - image_step: Current step number (1=Upload, 2=Create)
+#}
+<div class="smart-steps mb-3">
+    <div class="smart-step {% if image_step == 1 %}active{% elif image_step > 1 %}completed{% endif %}">
+        <div class="smart-step-dot"></div>
+        <div class="smart-step-label">Upload</div>
+    </div>
+    <div class="smart-step-line {% if image_step > 1 %}completed{% endif %}"></div>
+    <div class="smart-step {% if image_step == 2 %}active{% endif %}">
+        <div class="smart-step-dot"></div>
+        <div class="smart-step-label">Create</div>
+    </div>
+</div>

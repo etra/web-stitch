@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %}How to Create a Custom Cross-Stitch Pattern from Image — OurStitch Guide{% endblock %}
+
+{% block meta_description %}Learn how to create cross stitch patterns from any image using OurStitch's free cross stitch chart maker. Upload a photo, adjust colors and detail, and generate a printable PDF pattern in minutes.{% endblock %}
+
+{% block canonical %}<link rel="canonical" href="https://ourstitch.com/guide/smart-image">{% endblock %}
+{% block og_title %}How to Create a Custom Cross-Stitch Pattern from Any Image{% endblock %}
+{% block og_description %}Turn any image into a custom cross stitch pattern with OurStitch's free online chart maker. Step-by-step guide with screenshots.{% endblock %}
+{% block og_url %}https://ourstitch.com/guide/smart-image{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('guide.static', filename='guide/guide.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container" style="max-width: 48rem;">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="guide-breadcrumb mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('guide.index') }}">User Guide</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Create Pattern from Image</li>
+            </ol>
+        </nav>
+
+        <h1 class="fw-bold mb-2">How to Create a Custom Cross-Stitch Pattern from an Image</h1>
+        <p class="lead text-body-secondary mb-4">Use OurStitch as your free online cross stitch chart maker to turn any picture into a stitchable pattern. This guide walks you through the Smart Image conversion, step by step.</p>
+
+        <div class="alert alert-light border mb-5">
+            <i class="bi bi-lightbulb me-1"></i>
+            <strong>You can use any image you want</strong> &mdash; a photo, illustration, or even an AI-generated picture. In this guide we use <a href="https://gemini.google.com" target="_blank" rel="noopener">Google Gemini</a> to generate a cozy winter house scene, but any image works.
+        </div>
+
+        <!-- Step 1 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">1</span>
+                <h2 class="h5 mb-0">Get your source image</h2>
+            </div>
+            <p class="text-body-secondary">Start with any image you'd like to turn into a cross stitch pattern. You can use a personal photo, download a free illustration, or ask an AI image generator to create one for you. For this example, we asked Gemini to generate a cozy winter house with snow, trees, and a crescent moon.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/smart-image/1-ai-generate.png') }}" alt="Using Google Gemini to generate a winter house image for cross stitch conversion" class="img-fluid mb-3">
+            <p class="text-body-secondary small">Here is the image we'll use &mdash; a 512&times;512 px illustration with soft lighting and minimal detail, which converts well into custom cross stitch patterns:</p>
+            <div class="text-center">
+                <img src="{{ url_for('guide.static', filename='guide/images/smart-image/0-source-image.png') }}" alt="AI-generated winter house scene used as source for cross stitch pattern" class="img-fluid rounded" style="max-width: 280px;">
+            </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">2</span>
+                <h2 class="h5 mb-0">Click "Create Project" on the home page</h2>
+            </div>
+            <p class="text-body-secondary">Go to <a href="https://ourstitch.com">ourstitch.com</a> and click the <strong>Create Project</strong> button. This launches the project creation wizard that will guide you through naming, sizing, and image conversion.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/smart-image/2-home-page.png') }}" alt="OurStitch home page with Create Project button" class="img-fluid">
+        </div>
+
+        <!-- Step 3 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">3</span>
+                <h2 class="h5 mb-0">Name your project</h2>
+            </div>
+            <p class="text-body-secondary">Enter a <strong>project name</strong> and an optional description. You can also set difficulty level, tags, and visibility. Click <strong>Next</strong> to continue.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/smart-image/3-project-name.png') }}" alt="Project creation wizard step 1: enter project name and description" class="img-fluid">
+        </div>
+
+        <!-- Step 4 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">4</span>
+                <h2 class="h5 mb-0">Set the pattern size</h2>
+            </div>
+            <p class="text-body-secondary">Choose your canvas dimensions in <strong>stitches</strong> or use the fabric size calculator on the right. Here we start with <strong>70 &times; 70 stitches</strong> (5 &times; 5 inches on Aida 14). Don't worry if it's not perfect &mdash; you can come back and change it later.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/smart-image/4-pattern-size.png') }}" alt="Pattern size wizard showing 70x70 stitches and 5x5 inches on Aida 14" class="img-fluid">
+        </div>
+
+        <!-- Step 5 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">5</span>
+                <h2 class="h5 mb-0">Select a thread vendor</h2>
+            </div>
+            <p class="text-body-secondary">Pick the thread brand you'll use for stitching. <strong>DMC</strong> is the most popular choice with 456 embroidery colors. The converter will match your image colors to the closest threads from this catalog.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/smart-image/5-thread-vendor.png') }}" alt="Thread vendor selection with DMC selected showing 456 colors" class="img-fluid">
+        </div>
+
+        <!-- Step 6 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">6</span>
+                <h2 class="h5 mb-0">Choose "Smart Image" conversion</h2>
+            </div>
+            <p class="text-body-secondary">On the final wizard step, you'll see three options: <strong>Empty Project</strong>, <strong>From Image</strong>, and <strong>Smart Image</strong>. Choose <strong>Smart Image</strong> for the best results &mdash; it uses advanced color matching and edge detection to create cross stitch patterns that are faithful to the original.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/smart-image/6-choose-smart-image.png') }}" alt="Create project step showing Empty Project, From Image, and Smart Image options" class="img-fluid">
+        </div>
+
+        <!-- Step 7 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">7</span>
+                <h2 class="h5 mb-0">Upload your image</h2>
+            </div>
+            <p class="text-body-secondary">Drag and drop your image file or click to browse. JPG, PNG, and GIF files are supported (up to 16 MB).</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/smart-image/7-upload-page.png') }}" alt="Smart Image upload step with drag and drop area" class="img-fluid mb-3">
+            <img src="{{ url_for('guide.static', filename='guide/images/smart-image/8-file-picker.png') }}" alt="File picker selecting house.png image file" class="img-fluid">
+        </div>
+
+        <!-- Step 8 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">8</span>
+                <h2 class="h5 mb-0">Position and scale the image</h2>
+            </div>
+            <p class="text-body-secondary">The <strong>Prepare Image</strong> screen lets you position your image on the pattern grid. Use the <strong>Scale</strong> slider to zoom in on the area you want to stitch. Drag the image to reposition it within the frame. The grid overlay shows exactly which area will be converted.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/smart-image/9-prepare-100.png') }}" alt="Prepare Image screen at 100% scale showing full winter house image on grid" class="img-fluid mb-3">
+            <p class="text-body-secondary">Here we zoom to <strong>230%</strong> to focus on the house &mdash; the main subject of our pattern:</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/smart-image/10-prepare-230.png') }}" alt="Prepare Image screen zoomed to 230% focusing on the house" class="img-fluid">
+        </div>
+
+        <!-- Step 9 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">9</span>
+                <h2 class="h5 mb-0">Adjust brightness, contrast, and colors</h2>
+            </div>
+            <p class="text-body-secondary">Scroll down to see the <strong>Image Adjustments</strong> sliders. Tweak <strong>Brightness</strong> and <strong>Contrast</strong> to make details pop. The live preview shows both your adjusted image and a <strong>quantized</strong> version reduced to the target number of thread colors. Set the <strong>Maximum Colors</strong> slider to control how many thread colors to use.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/smart-image/11-prepare-adjusted.png') }}" alt="Image adjustments showing brightness 41, contrast 21, and side-by-side adjusted vs quantized preview" class="img-fluid">
+        </div>
+
+        <!-- Step 10 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">10</span>
+                <h2 class="h5 mb-0">Fine-tune the conversion settings</h2>
+            </div>
+            <p class="text-body-secondary">The <strong>Adjust &amp; Preview</strong> screen shows a live cross-stitch preview with the matched thread colors below. Use the controls on the right to refine your pattern:</p>
+            <ul class="text-body-secondary">
+                <li><strong>Smoothing</strong> &mdash; reduces noise in the pattern</li>
+                <li><strong>Sharpness</strong> &mdash; enhances edges and detail</li>
+                <li><strong>Edge Detail</strong> &mdash; controls backstitch line detection</li>
+                <li><strong>Dithering</strong> &mdash; blends colors for smoother gradients (Atkinson works well)</li>
+                <li><strong>Despeckling</strong> &mdash; removes isolated single-stitch specks</li>
+                <li><strong>Backstitch</strong> &mdash; adds outline stitches for definition</li>
+                <li><strong>Remove BG</strong> &mdash; removes the background color</li>
+            </ul>
+            <p class="text-body-secondary">Every change updates the preview instantly, so experiment until you're happy with how the pattern looks.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/smart-image/13-adjust-tweaked.png') }}" alt="Adjust and Preview screen showing cross stitch preview with 21 matched DMC colors and conversion settings" class="img-fluid">
+        </div>
+
+        <!-- Step 11 - Resize tip -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-warning text-dark">!</span>
+                <h2 class="h5 mb-0">Tip: Go back and increase the size if your image is too detailed</h2>
+            </div>
+            <div class="alert alert-warning border mb-3">
+                <p class="mb-2">After seeing the preview at 70 &times; 70 stitches, we realized the house has too much detail for such a small canvas &mdash; fine features like the window glow and chimney smoke were getting lost. At 5 &times; 5 inches on Aida 14, there simply aren't enough stitches to capture the scene.</p>
+                <p class="mb-0"><strong>The fix is easy:</strong> click <strong>Back</strong> to return to the Size step and increase the canvas. We doubled it to <strong>140 &times; 140 stitches</strong> (10 &times; 10 inches on Aida 14). The wizard remembers all your previous choices, so you just change the size and click through to Smart Image again.</p>
+            </div>
+            <img src="{{ url_for('guide.static', filename='guide/images/smart-image/14-size-increased.png') }}" alt="Pattern size wizard updated to 140x140 stitches, 10x10 inches on Aida 14" class="img-fluid mb-3">
+            <p class="text-body-secondary">After returning to the Adjust screen with the larger canvas, the preview now captures far more detail &mdash; 23 colors and over 20,000 stitches:</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/smart-image/15-adjust-final.png') }}" alt="Final Adjust and Preview at 140x140 showing improved detail with 23 colors and 20507 stitches" class="img-fluid">
+        </div>
+
+        <!-- Step 12 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">11</span>
+                <h2 class="h5 mb-0">Create the project</h2>
+            </div>
+            <p class="text-body-secondary">When you're happy with the preview, click <strong>Create Project</strong>. OurStitch generates the full cross stitch pattern with a color legend, symbol chart, and thread list. You'll land on the pattern overview page.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/smart-image/16-print-view.png') }}" alt="Pattern overview showing finished 140x140 cross stitch pattern with 25 colors and 20251 stitches" class="img-fluid">
+        </div>
+
+        <!-- Step 13 -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">12</span>
+                <h2 class="h5 mb-0">Download the PDF</h2>
+            </div>
+            <p class="text-body-secondary">Click <strong>Download PDF</strong> to export your pattern as a printable document. Choose between <strong>Chart Symbol</strong> (colored grid with symbols), <strong>B&amp;W</strong> (ink-friendly), or <strong>Stitch Preview</strong> (colored thread paths). The PDF includes a cover page, color legend with DMC thread codes and skein estimates, and paginated pattern grids.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/smart-image/17-pdf-export.png') }}" alt="PDF export options modal showing Chart Symbol, B&W, and Stitch Preview display modes" class="img-fluid mb-3">
+            <p class="text-body-secondary">Here is the finished PDF from this guide &mdash; 22 pages with cover, color legend, and symbol chart grids:</p>
+            <a href="{{ url_for('guide.static', filename='guide/images/smart-image/house-pattern.pdf') }}" target="_blank" class="btn btn-outline-primary">
+                <i class="bi bi-file-pdf me-2"></i>Download the Winter House Pattern (PDF)
+            </a>
+        </div>
+
+        <!-- Summary -->
+        <div class="card bg-light border mt-5 mb-4">
+            <div class="card-body">
+                <h3 class="h5 card-title">What you get</h3>
+                <p class="card-text text-body-secondary mb-2">Your finished custom cross stitch pattern includes:</p>
+                <ul class="text-body-secondary mb-0">
+                    <li>A full <strong>color legend</strong> with DMC thread codes, color swatches, stitch counts, and skein estimates</li>
+                    <li>Paginated <strong>symbol charts</strong> (30 &times; 40 stitches per page with overlap) for easy counting</li>
+                    <li>A <strong>printable PDF</strong> ready for your stitching project</li>
+                    <li>An <strong>editable project</strong> in the OurStitch editor &mdash; you can refine individual stitches, change colors, or add layers at any time</li>
+                </ul>
+            </div>
+        </div>
+
+        <p class="text-body-secondary text-center">Ready to create cross stitch patterns from your own images? <a href="{{ url_for('projects.new_name') }}" class="fw-semibold">Start a new project now</a>.</p>
+
+        <!-- Navigation -->
+        <div class="d-flex justify-content-between mt-5 pt-4 border-top">
+            <a href="{{ url_for('guide.create_project') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i> Create a Project</a>
+            <a href="{{ url_for('guide.editor') }}" class="btn btn-primary">The Editor <i class="bi bi-arrow-right ms-1"></i></a>
+        </div>
+    </div>
+</section>
+{% endblock %}

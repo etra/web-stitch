@@ -16,6 +16,14 @@ from stitch.oauth import oauth
 APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys'
 
 
+def _redirect_after_login():
+    """Redirect to the stored 'next' URL (if any) or the projects list."""
+    next_url = session.pop('next', None)
+    if next_url:
+        return redirect(next_url)
+    return _redirect_after_login()
+
+
 def login_required(f):
     """Decorator to require authentication for routes"""
     @wraps(f)
@@ -48,7 +56,7 @@ def login():
     """
     # If already logged in, redirect to projects
     if 'user_id' in session:
-        return redirect(url_for('projects.list'))
+        return _redirect_after_login()
 
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()
@@ -103,7 +111,7 @@ def verify_magic_link(token):
     session['is_admin'] = user.is_admin
 
     flash(f'Welcome, {user.email}!', 'success')
-    return redirect(url_for('projects.list'))
+    return _redirect_after_login()
 
 
 @bp.route('/logout')
@@ -159,7 +167,7 @@ def callback_google():
         session['is_admin'] = user.is_admin
 
         flash(f'Welcome, {user.email}!', 'success')
-        return redirect(url_for('projects.list'))
+        return _redirect_after_login()
 
     except Exception as e:
         current_app.logger.error(f'Google OAuth error: {e}')
@@ -203,7 +211,7 @@ def callback_google_one_tap():
         session['is_admin'] = user.is_admin
 
         flash(f'Welcome, {user.email}!', 'success')
-        return redirect(url_for('projects.list'))
+        return _redirect_after_login()
 
     except Exception as e:
         current_app.logger.error(f'Google One Tap error: {e}')
@@ -284,7 +292,7 @@ def callback_apple():
         session['is_admin'] = user.is_admin
 
         flash(f'Welcome, {user.email}!', 'success')
-        return redirect(url_for('projects.list'))
+        return _redirect_after_login()
 
     except Exception as e:
         current_app.logger.error(f'Apple Sign In error: {e}')
@@ -331,7 +339,7 @@ def callback_facebook():
         session['is_admin'] = user.is_admin
 
         flash(f'Welcome, {user.email}!', 'success')
-        return redirect(url_for('projects.list'))
+        return _redirect_after_login()
 
     except Exception as e:
         current_app.logger.error(f'Facebook OAuth error: {e}')
@@ -379,7 +387,7 @@ def callback_discord():
         session['is_admin'] = user.is_admin
 
         flash(f'Welcome, {user.email}!', 'success')
-        return redirect(url_for('projects.list'))
+        return _redirect_after_login()
 
     except Exception as e:
         current_app.logger.error(f'Discord OAuth error: {e}')

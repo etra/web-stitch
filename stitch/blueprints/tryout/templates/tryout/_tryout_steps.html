@@ -1,0 +1,20 @@
+{# 3-step indicator for the tryout flow.
+   Parameters:
+   - tryout_step: Current step number (1=Upload, 2=Position, 3=Download)
+#}
+<div class="smart-steps mb-3">
+    <div class="smart-step {% if tryout_step == 1 %}active{% elif tryout_step > 1 %}completed{% endif %}">
+        <div class="smart-step-dot"></div>
+        <div class="smart-step-label">Upload</div>
+    </div>
+    <div class="smart-step-line {% if tryout_step > 1 %}completed{% endif %}"></div>
+    <div class="smart-step {% if tryout_step == 2 %}active{% elif tryout_step > 2 %}completed{% endif %}">
+        <div class="smart-step-dot"></div>
+        <div class="smart-step-label">Position</div>
+    </div>
+    <div class="smart-step-line {% if tryout_step > 2 %}completed{% endif %}"></div>
+    <div class="smart-step {% if tryout_step == 3 %}active{% endif %}">
+        <div class="smart-step-dot"></div>
+        <div class="smart-step-label">Download</div>
+    </div>
+</div>

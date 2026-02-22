@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}From Image - Position - Web Stitch{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/wizard.css') }}">
+<link rel="stylesheet" href="{{ url_for('projects.static', filename='projects/projects.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="wizard-container">
+    <div class="wizard-card">
+        <h1 class="text-center mb-4">Position Image</h1>
+
+        {% set current_step = 4 %}
+        {% set steps = ['Name', 'Size', 'Vendor', 'Create'] %}
+        {% include 'components/wizard_steps.html' %}
+
+        {% set image_step = 2 %}
+        {% include 'projects/new/image/_image_steps.html' %}
+
+        <div class="image-positioner-canvas-wrap">
+            <canvas id="positioner-canvas"></canvas>
+        </div>
+        <div class="image-positioner-controls">
+            <label class="form-label mb-1">
+                <small>Scale: <span id="positioner-scale-label">100%</span></small>
+            </label>
+            <input type="range" class="form-range" id="positioner-scale"
+                   min="0.1" max="3.0" step="0.05" value="1.0">
+        </div>
+        <p class="text-muted text-center mb-0"><small>Drag image to reposition</small></p>
+
+        <div class="image-preview-pair mt-3">
+            <div class="image-preview-col">
+                <div class="image-preview-wrap">
+                    <canvas id="pos-original-preview" class="image-preview-canvas"></canvas>
+                </div>
+                <div class="image-preview-label">Original</div>
+            </div>
+            <div class="image-preview-col">
+                <div class="image-preview-wrap">
+                    <canvas id="pos-quantized-preview" class="image-preview-canvas"></canvas>
+                </div>
+                <div class="image-preview-label">Quantized (<span id="pos-quantized-count">16</span> colors)</div>
+            </div>
+        </div>
+
+        <div class="image-adjust-controls mt-3">
+            <h6 class="mb-2">Color Reduction</h6>
+            <div class="mb-2">
+                <label class="form-label small mb-0">
+                    Maximum Colors: <span id="pos-max-colors-label" class="fw-semibold">16</span>
+                </label>
+                <input type="range" class="form-range" id="pos-max-colors"
+                       min="2" max="{{ max_palette_colors }}" value="16">
+            </div>
+        </div>
+
+        <form method="POST" enctype="multipart/form-data" id="position-form" style="display: none;">
+            <input type="file" name="composed_image" id="composed-image-input">
+            <input type="hidden" name="max_colors" id="pos-max-colors-hidden" value="16">
+        </form>
+
+        <div class="wizard-nav mt-4">
+            <div class="wizard-nav-left">
+                <a href="{{ url_for('projects.image_upload') }}"
+                   class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Back
+                </a>
+                <a href="{{ url_for('projects.list') }}"
+                   class="btn btn-outline-secondary"
+                   data-wizard-cancel>
+                    <i class="bi bi-x-lg"></i> Cancel
+                </a>
+            </div>
+
+            <div class="wizard-nav-right">
+                <button type="button" class="btn btn-primary btn-lg" id="position-next-btn">
+                    <i class="bi bi-check-lg"></i> Create Project
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/wizard.js') }}"></script>
+<script src="{{ url_for('projects.static', filename='projects/projects.js') }}"></script>
+<script>
+    initImagePositionStep({
+        gridWidth: {{ wizard_data.width }},
+        gridHeight: {{ wizard_data.height }},
+        maxPaletteColors: {{ max_palette_colors }},
+        tempImageUrl: '{{ url_for("projects.image_temp_image") }}'
+    });
+</script>
+{% endblock %}

@@ -498,260 +498,97 @@ function quantizeImageData(srcData, maxColors) {
 
 
 /* =============================================================================
-   Wizard Create Step - Creation Mode & Image Modal
+   Wizard Create Step - Creation Mode Selection
    ============================================================================= */
 
 /**
- * Initialize the create step with mode selection and from-image modal.
- * Smart Image mode now navigates to /new/smart/upload instead of opening a modal.
- * @param {Object} config - { gridWidth, gridHeight, maxPaletteColors }
+ * Initialize the create step with mode selection.
+ * From Image and Smart Image navigate to dedicated pages via links.
  */
-function initCreateStep(config) {
+function initCreateStep() {
+    var modeEmpty = document.getElementById('mode-empty');
+    var createForm = document.getElementById('create-form');
+
+    if (!modeEmpty || !createForm) return;
+
+    modeEmpty.addEventListener('click', function() {
+        modeEmpty.classList.add('selected');
+        trackEvent('wizard_mode_select', { mode: 'empty' });
+    });
+
+    createForm.addEventListener('submit', function() {
+        trackEvent('wizard_create', { mode: 'empty' });
+    });
+}
+
+
+/* =============================================================================
+   From Image — Position Step
+   ============================================================================= */
+
+/**
+ * Initialize the from-image position page.
+ * Positioner canvas with drag + scale, side-by-side original/quantized preview,
+ * max colors slider, and "Create Project" button that composes and submits.
+ * @param {Object} config - { gridWidth, gridHeight, maxPaletteColors, tempImageUrl }
+ */
+function initImagePositionStep(config) {
     var gridWidth = config.gridWidth;
     var gridHeight = config.gridHeight;
-    var maxPaletteColors = config.maxPaletteColors;
+    var tempImageUrl = config.tempImageUrl;
+    var maxPaletteColors = config.maxPaletteColors || 128;
 
-    // DOM elements - mode cards
-    var modeEmpty = document.getElementById('mode-empty');
-    var modeImage = document.getElementById('mode-image');
-    var creationModeInput = document.getElementById('creation-mode-input');
-    var maxColorsInput = document.getElementById('max-colors-input');
-    var imageConfigSummary = document.getElementById('image-config-summary');
-    var imageFilenameEl = document.getElementById('image-filename');
-    var imageMaxColorsEl = document.getElementById('image-max-colors');
-    var reconfigureBtn = document.getElementById('reconfigure-image-btn');
-    var createForm = document.getElementById('create-form');
-    var createBtn = document.getElementById('create-btn');
-
-    // DOM elements - from-image modal
-    var overlay = document.getElementById('image-wizard-overlay');
-    var modalTitle = document.getElementById('image-wizard-title');
-    var closeBtn = document.getElementById('image-wizard-close');
-    var stepUpload = document.getElementById('iw-step-upload');
-    var stepPosition = document.getElementById('iw-step-position');
-    var stepColors = document.getElementById('iw-step-colors');
-    var backBtn = document.getElementById('iw-back-btn');
-    var nextBtn = document.getElementById('iw-next-btn');
-    var dropZone = document.getElementById('image-drop-zone');
-    var fileInput = document.getElementById('image-file-input');
-    var dropPrompt = document.getElementById('drop-zone-prompt');
-    var dropSelected = document.getElementById('drop-zone-selected');
-    var dropFilename = document.getElementById('drop-zone-filename');
     var posCanvas = document.getElementById('positioner-canvas');
     var posScaleSlider = document.getElementById('positioner-scale');
     var posScaleLabel = document.getElementById('positioner-scale-label');
-    var iwMaxColors = document.getElementById('iw-max-colors');
-    var iwMaxColorsLabel = document.getElementById('iw-max-colors-label');
-    var iwQuantizedLabel = document.getElementById('iw-quantized-label');
-    var iwPreviewOriginal = document.getElementById('iw-preview-original');
-    var iwPreviewQuantized = document.getElementById('iw-preview-quantized');
-    var configPreviewImg = document.getElementById('image-config-preview');
+    var nextBtn = document.getElementById('position-next-btn');
+    var positionForm = document.getElementById('position-form');
+    var composedInput = document.getElementById('composed-image-input');
 
-    // State - from-image
-    var selectedFile = null;
-    var composedBlob = null;
-    var composedImageData = null;
-    var imageElement = null;
-    var modalStep = 'upload';
-
-    // Image positioner state
-    var imgX = 0, imgY = 0, imgScale = 1.0;
-    var isDragging = false, dragStartX = 0, dragStartY = 0, dragStartImgX = 0, dragStartImgY = 0;
+    // Max colors slider + preview pair
+    var maxColorsSlider = document.getElementById('pos-max-colors');
+    var maxColorsLabel = document.getElementById('pos-max-colors-label');
+    var maxColorsHidden = document.getElementById('pos-max-colors-hidden');
+    var originalPreviewCanvas = document.getElementById('pos-original-preview');
+    var quantizedPreviewCanvas = document.getElementById('pos-quantized-preview');
+    var quantizedCountLabel = document.getElementById('pos-quantized-count');
 
     var MAX_CANVAS_DISPLAY = 380;
 
-    // ---------------------------------------------------------------
-    // Mode card selection
-    // ---------------------------------------------------------------
+    var imageEl = null;
+    var imgX = 0, imgY = 0, imgScale = 1.0;
+    var isDragging = false, dragStartX = 0, dragStartY = 0, dragStartImgX = 0, dragStartImgY = 0;
 
-    function selectMode(mode) {
-        creationModeInput.value = mode;
-        trackEvent('wizard_mode_select', { mode: mode });
-        modeEmpty.classList.toggle('selected', mode === 'empty');
-        modeImage.classList.toggle('selected', mode === 'image');
-
-        if (mode === 'empty') {
-            imageConfigSummary.style.display = 'none';
-            composedBlob = null;
+    // Load image from server
+    var img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = function() {
+        imageEl = img;
+        var imgAspect = img.naturalWidth / img.naturalHeight;
+        var gridAspect = gridWidth / gridHeight;
+        var fitW, fitH;
+        if (imgAspect > gridAspect) {
+            fitW = gridWidth;
+            fitH = gridWidth / imgAspect;
+        } else {
+            fitH = gridHeight;
+            fitW = gridHeight * imgAspect;
         }
-    }
-
-    modeEmpty.addEventListener('click', function() {
-        selectMode('empty');
-    });
-
-    modeImage.addEventListener('click', function() {
-        openModal();
-    });
-
-    if (reconfigureBtn) {
-        reconfigureBtn.addEventListener('click', function() {
-            openModal();
-        });
-    }
-
-    // ---------------------------------------------------------------
-    // From-Image Modal open/close
-    // ---------------------------------------------------------------
-
-    function openModal() {
-        overlay.style.display = 'flex';
-        showModalStep('upload');
-    }
-
-    function closeModal() {
-        overlay.style.display = 'none';
-    }
-
-    closeBtn.addEventListener('click', closeModal);
-    overlay.addEventListener('click', function(e) {
-        if (e.target === overlay) closeModal();
-    });
-
-    // ---------------------------------------------------------------
-    // Modal step navigation
-    // ---------------------------------------------------------------
-
-    function showModalStep(step) {
-        modalStep = step;
-        trackEvent('wizard_image_step', { step: step });
-        stepUpload.style.display = step === 'upload' ? '' : 'none';
-        stepPosition.style.display = step === 'position' ? '' : 'none';
-        stepColors.style.display = step === 'colors' ? '' : 'none';
-        backBtn.style.display = step === 'upload' ? 'none' : '';
-
-        if (step === 'upload') {
-            modalTitle.textContent = 'Upload Image';
-            nextBtn.innerHTML = 'Next <i class="bi bi-arrow-right"></i>';
-            nextBtn.disabled = !selectedFile;
-        } else if (step === 'position') {
-            modalTitle.textContent = 'Position Image';
-            nextBtn.innerHTML = 'Next <i class="bi bi-arrow-right"></i>';
-            nextBtn.disabled = false;
-            initPositioner();
-        } else if (step === 'colors') {
-            modalTitle.textContent = 'Color Settings';
-            nextBtn.innerHTML = '<i class="bi bi-check-lg"></i> Confirm';
-            nextBtn.disabled = false;
-            updateQuantizedPreview();
-        }
-    }
-
-    nextBtn.addEventListener('click', function() {
-        if (modalStep === 'upload') {
-            showModalStep('position');
-        } else if (modalStep === 'position') {
-            composeImage();
-            showModalStep('colors');
-        } else if (modalStep === 'colors') {
-            var mc = parseInt(iwMaxColors.value) || 16;
-            mc = Math.max(2, Math.min(mc, maxPaletteColors));
-            maxColorsInput.value = mc;
-
-            if (configPreviewImg && composedImageData) {
-                var quantized = quantizeImageData(composedImageData, mc);
-                drawPreviewCanvas(configPreviewImg, quantized);
-            }
-
-            trackEvent('wizard_image_confirm', { max_colors: mc });
-            selectMode('image');
-            imageConfigSummary.style.display = '';
-            imageFilenameEl.textContent = selectedFile ? selectedFile.name : '—';
-            imageMaxColorsEl.textContent = mc;
-            closeModal();
-        }
-    });
-
-    backBtn.addEventListener('click', function() {
-        if (modalStep === 'position') {
-            showModalStep('upload');
-        } else if (modalStep === 'colors') {
-            showModalStep('position');
-        }
-    });
-
-    // ---------------------------------------------------------------
-    // Drop zone
-    // ---------------------------------------------------------------
-
-    dropZone.addEventListener('click', function() {
-        fileInput.click();
-    });
-
-    fileInput.addEventListener('change', function() {
-        var file = fileInput.files[0];
-        if (file) handleFileSelected(file);
-    });
-
-    dropZone.addEventListener('dragover', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.dataTransfer.dropEffect = 'copy';
-        dropZone.classList.add('active');
-    });
-
-    dropZone.addEventListener('dragenter', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        dropZone.classList.add('active');
-    });
-
-    dropZone.addEventListener('dragleave', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        dropZone.classList.remove('active');
-    });
-
-    dropZone.addEventListener('drop', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        dropZone.classList.remove('active');
-        var file = e.dataTransfer.files[0];
-        if (file) handleFileSelected(file);
-    });
-
-    function handleFileSelected(file) {
-        selectedFile = file;
-        dropPrompt.style.display = 'none';
-        dropSelected.style.display = 'flex';
-        dropFilename.textContent = file.name;
-        nextBtn.disabled = false;
-
-        var objectUrl = URL.createObjectURL(file);
-        var img = new Image();
-        img.onload = function() {
-            URL.revokeObjectURL(objectUrl);
-            imageElement = img;
-            var imgAspect = img.naturalWidth / img.naturalHeight;
-            var gridAspect = gridWidth / gridHeight;
-            var fitW, fitH;
-            if (imgAspect > gridAspect) {
-                fitW = gridWidth;
-                fitH = gridWidth / imgAspect;
-            } else {
-                fitH = gridHeight;
-                fitW = gridHeight * imgAspect;
-            }
-            imgX = (gridWidth - fitW) / 2;
-            imgY = (gridHeight - fitH) / 2;
-            imgScale = 1.0;
-            posScaleSlider.value = '1.0';
-            posScaleLabel.textContent = '100%';
-        };
-        img.src = objectUrl;
-    }
-
-    // ---------------------------------------------------------------
-    // Image positioner (canvas)
-    // ---------------------------------------------------------------
+        imgX = (gridWidth - fitW) / 2;
+        imgY = (gridHeight - fitH) / 2;
+        imgScale = 1.0;
+        drawCanvas();
+        scheduleQuantizedPreview();
+    };
+    img.src = tempImageUrl;
 
     function getDisplayScale() {
         return MAX_CANVAS_DISPLAY / Math.max(gridWidth, gridHeight);
     }
 
     function getFitSize() {
-        if (!imageElement) return { w: 0, h: 0 };
-        var imgAspect = imageElement.naturalWidth / imageElement.naturalHeight;
+        if (!imageEl) return { w: 0, h: 0 };
+        var imgAspect = imageEl.naturalWidth / imageEl.naturalHeight;
         var gridAspect = gridWidth / gridHeight;
         if (imgAspect > gridAspect) {
             return { w: gridWidth, h: gridWidth / imgAspect };
@@ -760,12 +597,7 @@ function initCreateStep(config) {
         }
     }
 
-    function initPositioner() {
-        if (!imageElement) return;
-        drawPositionerCanvas();
-    }
-
-    function drawPositionerCanvas() {
+    function drawCanvas() {
         var ds = getDisplayScale();
         var cw = Math.round(gridWidth * ds);
         var ch = Math.round(gridHeight * ds);
@@ -776,6 +608,7 @@ function initCreateStep(config) {
         var ctx = posCanvas.getContext('2d');
         if (!ctx) return;
 
+        // Checkerboard
         var checkSize = Math.max(4, Math.round(ds / 2));
         for (var y = 0; y < ch; y += checkSize) {
             for (var x = 0; x < cw; x += checkSize) {
@@ -784,11 +617,11 @@ function initCreateStep(config) {
             }
         }
 
-        if (imageElement) {
+        if (imageEl) {
             var fit = getFitSize();
             var drawW = fit.w * imgScale;
             var drawH = fit.h * imgScale;
-            ctx.drawImage(imageElement, imgX * ds, imgY * ds, drawW * ds, drawH * ds);
+            ctx.drawImage(imageEl, imgX * ds, imgY * ds, drawW * ds, drawH * ds);
         }
 
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
@@ -824,13 +657,14 @@ function initCreateStep(config) {
         var ds = getDisplayScale();
         imgX = dragStartImgX + (e.clientX - dragStartX) / ds;
         imgY = dragStartImgY + (e.clientY - dragStartY) / ds;
-        drawPositionerCanvas();
+        drawCanvas();
     });
 
     document.addEventListener('mouseup', function() {
         if (isDragging) {
             isDragging = false;
             posCanvas.style.cursor = 'grab';
+            scheduleQuantizedPreview();
         }
     });
 
@@ -838,7 +672,7 @@ function initCreateStep(config) {
 
     posScaleSlider.addEventListener('input', function() {
         var newScale = parseFloat(posScaleSlider.value);
-        if (!imageElement) return;
+        if (!imageEl) return;
 
         var fit = getFitSize();
         var oldW = fit.w * imgScale;
@@ -853,126 +687,116 @@ function initCreateStep(config) {
         imgScale = newScale;
 
         posScaleLabel.textContent = Math.round(newScale * 100) + '%';
-        drawPositionerCanvas();
+        drawCanvas();
+        scheduleQuantizedPreview();
     });
 
-    // ---------------------------------------------------------------
-    // Compose final image
-    // ---------------------------------------------------------------
+    // Quantized preview — debounced
+    var quantizeTimer = null;
+    var QUANTIZE_DEBOUNCE = 400;
 
-    function dataUrlToBlob(dataUrl) {
-        var parts = dataUrl.split(',');
-        var mime = parts[0].match(/:(.*?);/)[1];
-        var raw = atob(parts[1]);
-        var arr = new Uint8Array(raw.length);
-        for (var i = 0; i < raw.length; i++) {
-            arr[i] = raw.charCodeAt(i);
-        }
-        return new Blob([arr], { type: mime });
+    function scheduleQuantizedPreview() {
+        if (quantizeTimer) clearTimeout(quantizeTimer);
+        quantizeTimer = setTimeout(updateQuantizedPreview, QUANTIZE_DEBOUNCE);
     }
 
-    function composeImage() {
-        var canvas = document.createElement('canvas');
-        canvas.width = gridWidth;
-        canvas.height = gridHeight;
-        var ctx = canvas.getContext('2d');
-        if (!ctx || !imageElement) return;
-
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, gridWidth, gridHeight);
-
-        var fit = getFitSize();
-        var drawW = fit.w * imgScale;
-        var drawH = fit.h * imgScale;
-        ctx.drawImage(imageElement, imgX, imgY, drawW, drawH);
-
-        composedImageData = ctx.getImageData(0, 0, gridWidth, gridHeight);
-
-        var dataUrl = canvas.toDataURL('image/png');
-        composedBlob = dataUrlToBlob(dataUrl);
-
-        drawPreviewCanvas(iwPreviewOriginal, composedImageData);
-        updateQuantizedPreview();
-    }
-
-    // ---------------------------------------------------------------
-    // Preview canvases (original + quantized)
-    // ---------------------------------------------------------------
-
-    var PREVIEW_MAX = 160;
-
-    function drawPreviewCanvas(canvasEl, imgData) {
-        if (!canvasEl || !imgData) return;
-        var sw = imgData.width, sh = imgData.height;
-        var scale = Math.min(PREVIEW_MAX / sw, PREVIEW_MAX / sh, 1);
-        var dw = Math.round(sw * Math.max(scale, PREVIEW_MAX / Math.max(sw, sh)));
-        var dh = Math.round(sh * Math.max(scale, PREVIEW_MAX / Math.max(sw, sh)));
+    function drawPreviewToCanvas(targetCanvas, srcImageData) {
+        var maxPreview = 160;
+        var sw = srcImageData.width, sh = srcImageData.height;
+        var ratio = Math.max(maxPreview / Math.max(sw, sh), 1);
+        var dw = Math.round(sw * ratio);
+        var dh = Math.round(sh * ratio);
 
         var tmp = document.createElement('canvas');
         tmp.width = sw;
         tmp.height = sh;
-        tmp.getContext('2d').putImageData(imgData, 0, 0);
+        tmp.getContext('2d').putImageData(srcImageData, 0, 0);
 
-        canvasEl.width = dw;
-        canvasEl.height = dh;
-        var ctx = canvasEl.getContext('2d');
+        targetCanvas.width = dw;
+        targetCanvas.height = dh;
+        var ctx = targetCanvas.getContext('2d');
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(tmp, 0, 0, dw, dh);
     }
 
     function updateQuantizedPreview() {
-        if (!composedImageData) return;
-        var mc = parseInt(iwMaxColors.value) || 16;
+        if (!imageEl || !quantizedPreviewCanvas) return;
+
+        // Compose at grid resolution
+        var tmpCanvas = document.createElement('canvas');
+        tmpCanvas.width = gridWidth;
+        tmpCanvas.height = gridHeight;
+        var tmpCtx = tmpCanvas.getContext('2d');
+        if (!tmpCtx) return;
+
+        tmpCtx.fillStyle = '#ffffff';
+        tmpCtx.fillRect(0, 0, gridWidth, gridHeight);
+
+        var fit = getFitSize();
+        var drawW = fit.w * imgScale;
+        var drawH = fit.h * imgScale;
+        tmpCtx.drawImage(imageEl, imgX, imgY, drawW, drawH);
+
+        var imgData = tmpCtx.getImageData(0, 0, gridWidth, gridHeight);
+
+        // Draw original
+        if (originalPreviewCanvas) {
+            drawPreviewToCanvas(originalPreviewCanvas, imgData);
+        }
+
+        // Draw quantized version
+        var mc = parseInt(maxColorsSlider.value) || 16;
         mc = Math.max(2, Math.min(mc, maxPaletteColors));
+        var quantized = quantizeImageData(imgData, mc);
+        drawPreviewToCanvas(quantizedPreviewCanvas, quantized);
 
-        var quantized = quantizeImageData(composedImageData, mc);
-        drawPreviewCanvas(iwPreviewQuantized, quantized);
-
-        if (iwQuantizedLabel) iwQuantizedLabel.textContent = mc;
-        if (iwMaxColorsLabel) iwMaxColorsLabel.textContent = mc + ' colors';
+        if (quantizedCountLabel) {
+            quantizedCountLabel.textContent = mc;
+        }
     }
 
-    iwMaxColors.addEventListener('input', function() {
-        updateQuantizedPreview();
+    maxColorsSlider.addEventListener('input', function() {
+        maxColorsLabel.textContent = maxColorsSlider.value;
+        scheduleQuantizedPreview();
     });
 
-    // ---------------------------------------------------------------
-    // Form submission (Empty + From Image only)
-    // ---------------------------------------------------------------
+    // Create button — compose at high resolution and submit
+    nextBtn.addEventListener('click', function() {
+        if (!imageEl) return;
 
-    createForm.addEventListener('submit', function(e) {
-        var mode = creationModeInput.value;
-        trackEvent('wizard_create', { mode: mode });
+        nextBtn.disabled = true;
+        nextBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Creating...';
 
-        if (mode === 'image') {
-            e.preventDefault();
+        var maxDim = Math.max(gridWidth, gridHeight);
+        var composeFactor = Math.max(1, Math.min(8, Math.floor(2048 / maxDim)));
 
-            if (!composedBlob) {
-                alert('No image has been configured. Please select an image first.');
-                return;
-            }
+        var cw = gridWidth * composeFactor;
+        var ch = gridHeight * composeFactor;
 
-            createBtn.disabled = true;
-            createBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Creating...';
+        var canvas = document.createElement('canvas');
+        canvas.width = cw;
+        canvas.height = ch;
+        var ctx = canvas.getContext('2d');
+        if (!ctx) return;
 
-            var fd = new FormData(createForm);
-            fd.set('creation_mode', 'image');
-            fd.set('max_colors', maxColorsInput.value);
-            fd.append('image', composedBlob, 'composed.png');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
 
-            fetch(createForm.action || window.location.href, {
-                method: 'POST',
-                body: fd,
-                redirect: 'follow'
-            }).then(function(resp) {
-                window.location.href = resp.url;
-            }).catch(function() {
-                createBtn.disabled = false;
-                createBtn.innerHTML = '<i class="bi bi-check-lg"></i> Create Project';
-                alert('An error occurred. Please try again.');
-            });
-        }
-        // else: empty mode — let normal form submit proceed
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, cw, ch);
+
+        var fit = getFitSize();
+        var drawW = fit.w * imgScale * composeFactor;
+        var drawH = fit.h * imgScale * composeFactor;
+        ctx.drawImage(imageEl, imgX * composeFactor, imgY * composeFactor, drawW, drawH);
+
+        canvas.toBlob(function(blob) {
+            var dt = new DataTransfer();
+            dt.items.add(new File([blob], 'composed.jpg', { type: 'image/jpeg' }));
+            composedInput.files = dt.files;
+            maxColorsHidden.value = maxColorsSlider.value;
+            positionForm.submit();
+        }, 'image/jpeg', 0.95);
     });
 }
 

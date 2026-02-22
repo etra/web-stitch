@@ -142,6 +142,7 @@ def sitemap_pages():
         ('/patterns',             'daily',   '0.9'),
         ('/guide/',               'monthly', '0.6'),
         ('/guide/create-project', 'monthly', '0.6'),
+        ('/guide/smart-image',    'monthly', '0.7'),
         ('/guide/editor',         'monthly', '0.6'),
         ('/guide/layers',         'monthly', '0.6'),
         ('/guide/print',          'monthly', '0.6'),

@@ -779,27 +779,8 @@ def new_create():
     max_palette_colors = current_app.config.get('MAX_PALETTE_COLORS', 32)
 
     if request.method == 'POST':
-        creation_mode = request.form.get('creation_mode', 'empty')
-
         try:
-            if creation_mode == 'image':
-                image_file = request.files.get('image')
-                max_colors = request.form.get('max_colors', type=int) or 16
-
-                if not image_file or not image_file.filename:
-                    flash('No image file provided.', 'danger')
-                    return render_template('projects/new/create.html',
-                                           wizard_data=wizard_data,
-                                           max_palette_colors=max_palette_colors)
-
-                max_colors = min(max_colors, max_palette_colors)
-
-                project = WizardService.create_project_from_image(
-                    user_id, image_file, max_colors
-                )
-            else:
-                project = WizardService.create_blank_project(user_id)
-
+            project = WizardService.create_blank_project(user_id)
             WizardService.clear_wizard()
             flash(f'Project "{project.name}" created successfully!', 'success')
             return redirect(url_for('projects.editor', project_id=project.id))
@@ -814,6 +795,109 @@ def new_create():
     return render_template('projects/new/create.html',
                            wizard_data=wizard_data,
                            max_palette_colors=max_palette_colors)
+
+
+# =============================================================================
+# WIZARD ROUTES - From Image Sub-Flow (2 pages)
+# =============================================================================
+
+@bp.route('/new/image/upload', methods=['GET', 'POST'])
+@login_required
+def image_upload():
+    """From Image step 1: Upload image file."""
+    if not WizardService.validate_wizard_state():
+        flash('Wizard session expired. Please start again.', 'warning')
+        return redirect(url_for('projects.new_name'))
+
+    wizard_data = WizardService.get_wizard_data()
+
+    if request.method == 'POST':
+        from stitch.services.image_service import ImageService
+
+        image_file = request.files.get('image')
+        if not image_file or not image_file.filename:
+            flash('No image file provided.', 'danger')
+            return render_template('projects/new/image/upload.html',
+                                   wizard_data=wizard_data)
+
+        if not ImageService.allowed_file(image_file.filename):
+            flash('File type not allowed. Use JPG, PNG, or GIF.', 'danger')
+            return render_template('projects/new/image/upload.html',
+                                   wizard_data=wizard_data)
+
+        WizardService.save_smart_temp_image(image_file)
+        return redirect(url_for('projects.image_position'))
+
+    return render_template('projects/new/image/upload.html',
+                           wizard_data=wizard_data)
+
+
+@bp.route('/new/image/position', methods=['GET', 'POST'])
+@login_required
+def image_position():
+    """From Image step 2: Position image and create project."""
+    if not WizardService.validate_wizard_state():
+        flash('Wizard session expired. Please start again.', 'warning')
+        return redirect(url_for('projects.new_name'))
+
+    temp_path = WizardService.get_smart_temp_image_path()
+    if not temp_path:
+        flash('No image uploaded. Please upload an image first.', 'warning')
+        return redirect(url_for('projects.image_upload'))
+
+    wizard_data = WizardService.get_wizard_data()
+    max_palette_colors = current_app.config.get('MAX_PALETTE_COLORS', 32)
+
+    if request.method == 'POST':
+        user_id = session.get('user_id')
+
+        composed_file = request.files.get('composed_image')
+        if not composed_file or not composed_file.filename:
+            flash('Failed to compose image. Please try again.', 'danger')
+            return render_template('projects/new/image/position.html',
+                                   wizard_data=wizard_data,
+                                   max_palette_colors=max_palette_colors)
+
+        max_colors = request.form.get('max_colors', type=int) or 16
+        max_colors = max(2, min(max_colors, max_palette_colors))
+
+        try:
+            project = WizardService.create_project_from_image(
+                user_id, composed_file, max_colors
+            )
+            WizardService.clear_wizard()
+            flash(f'Project "{project.name}" created successfully!', 'success')
+            return redirect(url_for('print.view', project_id=project.id))
+
+        except Exception as e:
+            logging.exception('Error creating project from image')
+            flash(f'Error creating project: {str(e)}', 'danger')
+            return render_template('projects/new/image/position.html',
+                                   wizard_data=wizard_data,
+                                   max_palette_colors=max_palette_colors)
+
+    return render_template('projects/new/image/position.html',
+                           wizard_data=wizard_data,
+                           max_palette_colors=max_palette_colors)
+
+
+@bp.route('/new/image/temp-image')
+@login_required
+def image_temp_image():
+    """Serve the uploaded temp image for the from-image positioner canvas."""
+    import mimetypes
+
+    temp_path = WizardService.get_smart_temp_image_path()
+    if not temp_path:
+        return '', 404
+
+    mime = mimetypes.guess_type(str(temp_path))[0] or 'image/jpeg'
+
+    return send_file(
+        str(temp_path),
+        mimetype=mime,
+        as_attachment=False,
+    )
 
 
 # =============================================================================
@@ -945,7 +1029,7 @@ def smart_adjust():
             )
             WizardService.clear_wizard()
             flash(f'Project "{project.name}" created successfully!', 'success')
-            return redirect(url_for('projects.editor', project_id=project.id))
+            return redirect(url_for('print.view', project_id=project.id))
 
         except Exception as e:
             logging.exception('Error creating smart image project')

@@ -135,7 +135,8 @@ class PatternPDFService:
     SITE_CTA = "Create your free pattern at https://ourstitch.com"
 
     @staticmethod
-    def generate_pdf(project, logo_path: str = None, render_mode: dict = None) -> bytes:
+    def generate_pdf(project, logo_path: str = None, render_mode: dict = None,
+                     state: dict = None) -> bytes:
         """
         Generate a complete pattern PDF.
 
@@ -143,6 +144,9 @@ class PatternPDFService:
             project: Project object with state, dimensions, etc.
             logo_path: Path to logo image file (optional)
             render_mode: Dict with show_color, show_stitch, show_symbol, show_line flags
+            state: Pre-assembled state dict (optional). When provided, skips
+                   the ProjectService.assemble_state() call — useful for
+                   in-memory patterns that have no database rows.
 
         Returns:
             PDF file as bytes
@@ -179,7 +183,8 @@ class PatternPDFService:
 
         # Assemble state once for all rendering calls
         t0 = time.perf_counter()
-        state = ProjectService.assemble_state(project)
+        if state is None:
+            state = ProjectService.assemble_state(project)
         logger.info('[pdf] assemble_state: %.3fs', time.perf_counter() - t0)
 
         # Generate pattern data (single pass over all cells)

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Your Pattern Is Ready — OurStitch{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/wizard.css') }}">
+<link rel="stylesheet" href="{{ url_for('projects.static', filename='projects/projects.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="wizard-container">
+    <div class="wizard-card text-center">
+        <h1 class="mb-2">Your Pattern Is Ready!</h1>
+        <p class="text-muted mb-4">{{ wizard_data.width }} &times; {{ wizard_data.height }} stitches &middot; {{ wizard_data.get('max_colors', 32) }} colors</p>
+
+        {% set tryout_step = 3 %}
+        {% include 'tryout/_tryout_steps.html' %}
+
+        <div class="d-grid gap-3 mt-4 mb-4" style="max-width: 360px; margin: 0 auto;">
+            <a href="{{ url_for('tryout.pdf') }}" target="_blank"
+               class="btn btn-primary btn-lg">
+                <i class="bi bi-file-earmark-pdf me-1"></i> Download PDF
+            </a>
+        </div>
+
+        <div class="mt-4">
+            <a href="{{ url_for('tryout.index') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Start Over
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

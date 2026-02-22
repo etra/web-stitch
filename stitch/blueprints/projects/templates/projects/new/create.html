@@ -42,13 +42,13 @@
                 <div class="creation-mode-desc">Start with a blank canvas and draw your pattern from scratch</div>
             </div>
 
-            <div class="creation-mode-card" id="mode-image" data-mode="image">
+            <a href="{{ url_for('projects.image_upload') }}" class="creation-mode-card" style="text-decoration: none; color: inherit;">
                 <div class="creation-mode-icon">
                     <i class="bi bi-image"></i>
                 </div>
                 <div class="creation-mode-name">From Image</div>
                 <div class="creation-mode-desc">Upload an image and convert it to cross-stitch stitches</div>
-            </div>
+            </a>
 
             <a href="{{ url_for('projects.smart_upload') }}" class="creation-mode-card" style="text-decoration: none; color: inherit;">
                 <div class="creation-mode-icon">
@@ -60,36 +60,10 @@
             </a>
         </div>
 
-        <!-- Image configuration summary (shown when image is configured) -->
-        <div class="image-config-summary" id="image-config-summary" style="display: none;">
-            <div class="d-flex gap-3 align-items-start">
-                <div class="image-config-thumb">
-                    <canvas id="image-config-preview"></canvas>
-                </div>
-                <div class="flex-grow-1">
-                    <div class="summary-card mb-0">
-                        <div class="summary-row">
-                            <span class="summary-label">Image:</span>
-                            <span class="summary-value" id="image-filename">—</span>
-                        </div>
-                        <div class="summary-row">
-                            <span class="summary-label">Max Colors:</span>
-                            <span class="summary-value" id="image-max-colors">—</span>
-                        </div>
-                    </div>
-                    <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="reconfigure-image-btn">
-                        <i class="bi bi-pencil"></i> Change Image Settings
-                    </button>
-                </div>
-            </div>
-        </div>
-
         <form method="POST"
               id="create-form"
-              class="wizard-form"
-              enctype="multipart/form-data">
+              class="wizard-form">
             <input type="hidden" name="creation_mode" id="creation-mode-input" value="empty">
-            <input type="hidden" name="max_colors" id="max-colors-input" value="16">
 
             <div class="wizard-nav">
                 <div class="wizard-nav-left">
@@ -113,96 +87,12 @@
         </form>
     </div>
 </div>
-
-<!-- From Image Modal -->
-<div class="image-wizard-overlay" id="image-wizard-overlay" style="display: none;">
-    <div class="image-wizard-modal">
-        <div class="image-wizard-header">
-            <span id="image-wizard-title">Upload Image</span>
-            <button type="button" class="image-wizard-close" id="image-wizard-close">&times;</button>
-        </div>
-
-        <div class="image-wizard-body">
-            <!-- Step 1: Upload -->
-            <div class="image-wizard-step" id="iw-step-upload">
-                <p class="text-muted mb-3">Upload an image to convert into cross-stitch stitches. The image will be analyzed and matched to thread colors.</p>
-                <div class="image-drop-zone" id="image-drop-zone">
-                    <input type="file" accept="image/*" id="image-file-input" style="display: none;">
-                    <div class="image-drop-zone-prompt" id="drop-zone-prompt">
-                        <i class="bi bi-cloud-arrow-up" style="font-size: 2rem;"></i>
-                        <span>Drop image here or click to browse</span>
-                    </div>
-                    <div class="image-drop-zone-selected" id="drop-zone-selected" style="display: none;">
-                        <i class="bi bi-image"></i>
-                        <span id="drop-zone-filename"></span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Step 2: Position -->
-            <div class="image-wizard-step" id="iw-step-position" style="display: none;">
-                <div class="image-positioner-canvas-wrap">
-                    <canvas id="positioner-canvas"></canvas>
-                </div>
-                <div class="image-positioner-controls">
-                    <label class="form-label mb-1">
-                        <small>Scale: <span id="positioner-scale-label">100%</span></small>
-                    </label>
-                    <input type="range" class="form-range" id="positioner-scale"
-                           min="0.1" max="3.0" step="0.05" value="1.0">
-                </div>
-                <p class="text-muted text-center mb-0"><small>Drag image to reposition</small></p>
-            </div>
-
-            <!-- Step 3: Colors -->
-            <div class="image-wizard-step" id="iw-step-colors" style="display: none;">
-                <div class="image-preview-pair mb-3">
-                    <div class="image-preview-col">
-                        <div class="image-preview-wrap">
-                            <canvas id="iw-preview-original" class="image-preview-canvas"></canvas>
-                        </div>
-                        <div class="image-preview-label">Original</div>
-                    </div>
-                    <div class="image-preview-col">
-                        <div class="image-preview-wrap">
-                            <canvas id="iw-preview-quantized" class="image-preview-canvas"></canvas>
-                        </div>
-                        <div class="image-preview-label"><span id="iw-quantized-label">16</span> colors</div>
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <label for="iw-max-colors" class="form-label">Maximum Colors</label>
-                    <input type="range" class="form-range" id="iw-max-colors"
-                           min="2" max="{{ max_palette_colors }}" value="16">
-                    <div class="d-flex justify-content-between">
-                        <small class="text-muted">2</small>
-                        <small class="fw-semibold" id="iw-max-colors-label">16 colors</small>
-                        <small class="text-muted">{{ max_palette_colors }}</small>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="image-wizard-footer">
-            <button type="button" class="btn btn-outline-secondary" id="iw-back-btn" style="display: none;">
-                <i class="bi bi-arrow-left"></i> Back
-            </button>
-            <button type="button" class="btn btn-primary" id="iw-next-btn" disabled>
-                Next <i class="bi bi-arrow-right"></i>
-            </button>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/wizard.js') }}"></script>
 <script src="{{ url_for('projects.static', filename='projects/projects.js') }}"></script>
 <script>
-    initCreateStep({
-        gridWidth: {{ wizard_data.width }},
-        gridHeight: {{ wizard_data.height }},
-        maxPaletteColors: {{ max_palette_colors }}
-    });
+    initCreateStep();
 </script>
 {% endblock %}

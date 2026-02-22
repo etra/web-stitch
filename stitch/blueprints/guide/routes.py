@@ -15,6 +15,12 @@ def create_project():
     return render_template('guide/create-project.html')
 
 
+@bp.route('/smart-image')
+def smart_image():
+    """How to create a cross-stitch pattern from an image."""
+    return render_template('guide/smart-image.html')
+
+
 @bp.route('/editor')
 def editor():
     """Introduction to the editor."""
