@@ -506,6 +506,23 @@
     margin-bottom: 0.5rem;
 }
 
+.image-adjust-controls .form-range {
+    margin-top: 0.125rem;
+}
+
+.image-adjust-controls .form-range::-webkit-slider-runnable-track {
+    background: var(--bs-border-color);
+    height: 6px;
+    border-radius: 3px;
+}
+
+.image-adjust-controls .form-range::-moz-range-track {
+    background: var(--bs-border-color);
+    height: 6px;
+    border-radius: 3px;
+}
+
+
 /* Ensure slider track is visible on all backgrounds */
 .image-positioner-controls .form-range::-webkit-slider-runnable-track {
     background: var(--bs-border-color);
@@ -542,5 +559,153 @@
     .image-wizard-modal {
         width: 95%;
         margin: 0.5rem;
+    }
+}
+
+/* =============================================================================
+   Smart Image Pages — Mini Step Indicator
+   ============================================================================= */
+
+.smart-steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+}
+
+.smart-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.smart-step-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--bs-border-color);
+    transition: all 0.2s ease;
+}
+
+.smart-step.active .smart-step-dot {
+    background: var(--bs-primary);
+    box-shadow: 0 0 0 3px rgba(var(--bs-primary-rgb), 0.25);
+}
+
+.smart-step.completed .smart-step-dot {
+    background: var(--bs-success);
+}
+
+.smart-step-label {
+    font-size: 0.6875rem;
+    color: var(--bs-secondary-color);
+}
+
+.smart-step.active .smart-step-label {
+    color: var(--bs-primary);
+    font-weight: 600;
+}
+
+.smart-step.completed .smart-step-label {
+    color: var(--bs-success);
+}
+
+.smart-step-line {
+    width: 40px;
+    height: 2px;
+    background: var(--bs-border-color);
+    margin: 0 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.smart-step-line.completed {
+    background: var(--bs-success);
+}
+
+/* =============================================================================
+   Smart Image Pages — Adjust Layout
+   ============================================================================= */
+
+.smart-adjust-layout {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.smart-adjust-preview {
+    flex: 1;
+    min-width: 0;
+}
+
+.smart-adjust-controls {
+    width: 320px;
+    flex-shrink: 0;
+}
+
+.smart-adjust-controls .form-range {
+    margin-top: 0.125rem;
+}
+
+.smart-adjust-controls .form-range::-webkit-slider-runnable-track {
+    background: var(--bs-border-color);
+    height: 6px;
+    border-radius: 3px;
+}
+
+.smart-adjust-controls .form-range::-moz-range-track {
+    background: var(--bs-border-color);
+    height: 6px;
+    border-radius: 3px;
+}
+
+/* Palette swatches grid */
+.smart-palette-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    max-height: 160px;
+    overflow-y: auto;
+    padding: 4px 0;
+}
+
+.smart-palette-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--bs-border-radius-sm);
+    border: 1px solid var(--bs-border-color);
+    cursor: default;
+    position: relative;
+}
+
+.smart-palette-swatch:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    padding: 2px 6px;
+    border-radius: var(--bs-border-radius-sm);
+    font-size: 10px;
+    white-space: nowrap;
+    z-index: 100;
+    margin-bottom: 4px;
+    border: 1px solid var(--bs-border-color);
+    pointer-events: none;
+}
+
+#sa-preview-img {
+    image-rendering: pixelated;
+}
+
+@media (max-width: 768px) {
+    .smart-adjust-layout {
+        flex-direction: column;
+    }
+
+    .smart-adjust-controls {
+        width: 100%;
     }
 }

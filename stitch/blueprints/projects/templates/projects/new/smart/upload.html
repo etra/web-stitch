@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Smart Image - Upload - Web Stitch{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/wizard.css') }}">
+<link rel="stylesheet" href="{{ url_for('projects.static', filename='projects/projects.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="wizard-container">
+    <div class="wizard-card">
+        <h1 class="text-center mb-4">Smart Image</h1>
+
+        {% set current_step = 4 %}
+        {% set steps = ['Name', 'Size', 'Vendor', 'Create'] %}
+        {% include 'components/wizard_steps.html' %}
+
+        {% set smart_step = 1 %}
+        {% include 'projects/new/smart/_smart_steps.html' %}
+
+        <p class="text-muted mb-3">Upload an image for smart conversion. AI-enhanced color matching and edge detail for the best cross-stitch result.</p>
+
+        <form method="POST" enctype="multipart/form-data" id="upload-form">
+            <div class="image-drop-zone" id="smart-drop-zone">
+                <input type="file" accept="image/*" name="image" id="smart-file-input" style="display: none;">
+                <div class="image-drop-zone-prompt" id="smart-drop-prompt">
+                    <i class="bi bi-cloud-arrow-up" style="font-size: 2rem;"></i>
+                    <span>Drop image here or click to browse</span>
+                </div>
+                <div class="image-drop-zone-selected" id="smart-drop-selected" style="display: none;">
+                    <i class="bi bi-image"></i>
+                    <span id="smart-drop-filename"></span>
+                </div>
+            </div>
+
+            <div class="wizard-nav mt-4">
+                <div class="wizard-nav-left">
+                    <a href="{{ url_for('projects.new_create') }}"
+                       class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Back
+                    </a>
+                    <a href="{{ url_for('projects.list') }}"
+                       class="btn btn-outline-secondary"
+                       data-wizard-cancel>
+                        <i class="bi bi-x-lg"></i> Cancel
+                    </a>
+                </div>
+
+                <div class="wizard-nav-right">
+                    <button type="submit" class="btn btn-primary" id="upload-next-btn" disabled>
+                        Next <i class="bi bi-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/wizard.js') }}"></script>
+<script src="{{ url_for('projects.static', filename='projects/projects.js') }}"></script>
+<script>
+    initSmartUploadStep();
+</script>
+{% endblock %}

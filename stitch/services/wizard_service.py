@@ -4,10 +4,13 @@ Wizard service for managing project creation wizard state and logic.
 This service handles the multi-step wizard for creating both blank projects
 and pattern-based projects.
 """
+import os
+import shutil
 import time
 import uuid
+from pathlib import Path
 from typing import Dict, Optional
-from flask import session
+from flask import current_app, session
 from stitch.models.project import Project
 from stitch.services.project_service import ProjectService
 from stitch.services.tag_service import TagService
@@ -64,7 +67,106 @@ class WizardService:
     @staticmethod
     def clear_wizard() -> None:
         """Clear wizard state from session."""
+        WizardService.cleanup_smart_temp()
         session.pop(WizardService.WIZARD_SESSION_KEY, None)
+
+    # ------------------------------------------------------------------
+    # Smart Image temp file management
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _get_temp_dir() -> Path:
+        """Return the wizard temp upload base directory (absolute)."""
+        upload_folder = current_app.config.get('UPLOAD_FOLDER', 'uploads')
+        return Path(upload_folder).resolve() / 'wizard_temp'
+
+    @staticmethod
+    def save_smart_temp_image(image_file) -> Path:
+        """Save uploaded image to a temp directory, store path in session.
+
+        Args:
+            image_file: Werkzeug FileStorage from request.files.
+
+        Returns:
+            Path to the saved file.
+        """
+        temp_id = str(uuid.uuid4())
+        temp_dir = WizardService._get_temp_dir() / temp_id
+        temp_dir.mkdir(parents=True, exist_ok=True)
+
+        # Preserve original extension
+        ext = Path(image_file.filename).suffix.lower() if image_file.filename else '.png'
+        file_path = temp_dir / f'original{ext}'
+        image_file.save(str(file_path))
+
+        WizardService.update_wizard_data({
+            'smart_temp_id': temp_id,
+            'smart_temp_file': str(file_path),
+        })
+        return file_path
+
+    @staticmethod
+    def save_smart_composed_image(image_file) -> Path:
+        """Save composed (positioned) image, overwriting any previous.
+
+        Args:
+            image_file: Werkzeug FileStorage from request.files.
+
+        Returns:
+            Path to the saved composed file.
+        """
+        wizard_data = WizardService.get_wizard_data()
+        temp_id = wizard_data.get('smart_temp_id')
+
+        if not temp_id:
+            # No temp dir yet — create one
+            temp_id = str(uuid.uuid4())
+            temp_dir = WizardService._get_temp_dir() / temp_id
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            WizardService.update_wizard_data({'smart_temp_id': temp_id})
+        else:
+            temp_dir = WizardService._get_temp_dir() / temp_id
+            temp_dir.mkdir(parents=True, exist_ok=True)
+
+        file_path = temp_dir / 'composed.jpg'
+        image_file.save(str(file_path))
+
+        WizardService.update_wizard_data({
+            'smart_composed_file': str(file_path),
+        })
+        return file_path
+
+    @staticmethod
+    def get_smart_temp_image_path() -> Optional[Path]:
+        """Return path to the original temp image, or None."""
+        wizard_data = WizardService.get_wizard_data()
+        path_str = wizard_data.get('smart_temp_file')
+        if path_str:
+            p = Path(path_str)
+            if p.exists():
+                return p
+        return None
+
+    @staticmethod
+    def get_smart_composed_image_path() -> Optional[Path]:
+        """Return path to the composed temp image, or None."""
+        wizard_data = WizardService.get_wizard_data()
+        path_str = wizard_data.get('smart_composed_file')
+        if path_str:
+            p = Path(path_str)
+            if p.exists():
+                return p
+        return None
+
+    @staticmethod
+    def cleanup_smart_temp() -> None:
+        """Delete the temp directory for smart image uploads."""
+        wizard_data = WizardService.get_wizard_data()
+        temp_id = wizard_data.get('smart_temp_id')
+        if temp_id:
+            temp_dir = WizardService._get_temp_dir() / temp_id
+            if temp_dir.exists():
+                shutil.rmtree(str(temp_dir), ignore_errors=True)
 
     @staticmethod
     def get_wizard_data() -> Dict:
@@ -251,18 +353,24 @@ class WizardService:
                                    backstitch: bool = True,
                                    edge_detail: str = 'medium',
                                    despeckle: str = 'light',
-                                   dithering: str = 'off') -> Project:
+                                   dithering: str = 'off',
+                                   sharpness: str = 'medium',
+                                   remove_bg: bool = False,
+                                   smoothing: int = 50) -> Project:
         """
         Create a project using the smart image conversion pipeline.
 
         Args:
             user_id: User ID
-            image_file: Uploaded image file (from request.files)
+            image_file: Uploaded image file (FileStorage or Path)
             max_colors: Maximum number of colors for conversion
             backstitch: Whether to generate backstitch lines.
             edge_detail: Edge sensitivity — 'low', 'medium', or 'high'.
             despeckle: Despeckling strength — 'off', 'light', or 'heavy'.
             dithering: Dithering algorithm — 'off' or 'atkinson'.
+            sharpness: Sharpening strength — 'off', 'low', 'medium', or 'high'.
+            remove_bg: Whether to remove image background before conversion.
+            smoothing: Smoothing strength (0 to 100).
 
         Returns:
             Created Project instance
@@ -311,7 +419,8 @@ class WizardService:
         result = SmartImageService.convert_image_to_stitches(
             project, image_file, max_colors, vendor=vendor,
             backstitch=backstitch, edge_detail=edge_detail, despeckle=despeckle,
-            dithering=dithering,
+            dithering=dithering, sharpness=sharpness, remove_bg=remove_bg,
+            smoothing=smoothing,
         )
 
         # Build palette from the new colors

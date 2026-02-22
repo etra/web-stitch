@@ -1,4 +1,7 @@
 """Project service for CRUD operations and state management"""
+import hashlib
+import json
+
 from flask import current_app
 from stitch.models.project import Project, ProjectStatus
 from stitch.models.project_layer import ProjectLayer
@@ -327,6 +330,9 @@ class ProjectService:
         project.show_grid_numbers = properties.get('showGridNumbers', False)
         project.default_stitch_type = properties.get('defaultStitchType', 'full')
 
+        # Recompute content hash for cacheable thumbnail URLs
+        project.state_hash = ProjectService._compute_state_hash(project, state_dict)
+
         db.session.flush()
 
     @staticmethod
@@ -430,6 +436,9 @@ class ProjectService:
         props = data.get('properties', {})
         project.show_grid_numbers = props.get('showGridNumbers', False)
         project.default_stitch_type = props.get('defaultStitchType', 'full')
+
+        # Recompute content hash for cacheable thumbnail URLs
+        project.state_hash = ProjectService._compute_state_hash(project, data)
 
         db.session.commit()
 
@@ -666,14 +675,22 @@ class ProjectService:
         if not project:
             return None
 
-        # If state is provided, route through save_state
+        # If state is provided, route through save_state (which updates state_hash)
         if 'state' in kwargs:
             ProjectService.save_state(project, kwargs.pop('state'))
 
         # Update other allowed fields
+        rendering_fields_changed = False
         for key in ['name', 'description', 'width', 'height', 'cloth_color', 'difficulty']:
             if key in kwargs:
                 setattr(project, key, kwargs[key])
+                if key in ('width', 'height', 'cloth_color'):
+                    rendering_fields_changed = True
+
+        # If rendering-relevant fields changed, derive a new hash
+        if rendering_fields_changed:
+            seed = f"{project.state_hash}:{project.width}:{project.height}:{project.cloth_color}"
+            project.state_hash = hashlib.sha256(seed.encode()).hexdigest()[:10]
 
         db.session.commit()
         return project
@@ -1144,6 +1161,58 @@ class ProjectService:
         ).delete(synchronize_session=False)
 
         db.session.commit()
+
+    @staticmethod
+    def _compute_state_hash(project: Project, data: dict) -> str:
+        """
+        Compute a 10-char hex SHA-256 hash of rendering-relevant state.
+
+        Used to generate cacheable thumbnail URLs. The hash changes
+        whenever the visual output of the project would change.
+
+        Args:
+            project: Project instance (for width, height, cloth_color)
+            data: State dict with palette/colors, layers, properties
+
+        Returns:
+            10-character hex string
+        """
+        # Collect only rendering-relevant fields
+        hash_data = {
+            'width': project.width,
+            'height': project.height,
+            'cloth_color': project.cloth_color,
+        }
+
+        # Palette — use 'palette' key (from assemble_state / save_state)
+        # or 'colors' key (from save_project_data editor API)
+        colors = data.get('palette') or data.get('colors', [])
+        hash_data['palette'] = [
+            {
+                'vendor': c.get('vendor'),
+                'code': c.get('code'),
+                'symbol': c.get('symbol'),
+            }
+            for c in colors
+        ]
+
+        # Layers — exclude referenceImageData (large, not rendering-relevant)
+        hash_layers = []
+        for layer in data.get('layers', []):
+            hash_layers.append({
+                'cells': layer.get('cells', {}),
+                'paths': layer.get('paths', []),
+                'visible': layer.get('visible'),
+                'activeForExport': layer.get('activeForExport'),
+                'opacity': layer.get('opacity'),
+                'type': layer.get('type'),
+            })
+        hash_data['layers'] = hash_layers
+
+        hash_data['properties'] = data.get('properties', {})
+
+        canonical = json.dumps(hash_data, sort_keys=True, default=str)
+        return hashlib.sha256(canonical.encode()).hexdigest()[:10]
 
     @staticmethod
     def _hex_to_rgb(hex_color: str) -> list:

@@ -243,6 +243,94 @@ def _send_image(image):
     )
 
 
+THUMBNAIL_TYPES = {'small', 'large', 'fill', 'cross', 'symbol', 'symbolbw'}
+
+
+@bp.route('/<project_id>/thumbnail-<state_hash>-<image_type>.png')
+def cached_thumbnail(project_id, state_hash, image_type):
+    """Cacheable thumbnail with content hash in URL.
+
+    URL format: /projects/<id>/thumbnail-<hash>-<type>.png
+
+    The state_hash parameter exists only for URL uniqueness — when project
+    state changes the hash changes, busting Cloudflare's cache automatically.
+    The hash is not validated server-side.
+
+    Accessible by project owner or anyone if the project is public.
+    """
+    from stitch.services.pattern_renderer import PatternRenderer
+
+    if image_type not in THUMBNAIL_TYPES:
+        return '', 404
+
+    project = ProjectService.get_project(project_id)
+    if not project or (not project.is_public and project.user_id != session.get('user_id')):
+        return '', 404
+
+    try:
+        state = ProjectService.assemble_state(project)
+
+        if image_type == 'small':
+            import cv2
+            image = PatternRenderer.render_colored_pattern(
+                state, project.width, project.height, cell_size=3
+            )
+            image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+            success, buffer = cv2.imencode('.png', image_bgr)
+            if not success:
+                return '', 500
+            response = send_file(
+                io.BytesIO(buffer.tobytes()),
+                mimetype='image/png',
+                as_attachment=False
+            )
+        elif image_type == 'large':
+            thumb = PatternRenderer.render_thumbnail(
+                state, project.width, project.height
+            )
+            response = _send_image(thumb)
+        elif image_type == 'fill':
+            pattern = PatternRenderer.render_colored_pattern(
+                state, project.width, project.height,
+                cell_size=4, solid_fill=True
+            )
+            response = _send_image(_render_thumbnail_canvas(pattern))
+        elif image_type == 'cross':
+            pattern = PatternRenderer.render_colored_pattern(
+                state, project.width, project.height,
+                cell_size=8, solid_fill=False
+            )
+            response = _send_image(_render_thumbnail_canvas(pattern))
+        elif image_type == 'symbol':
+            pattern = PatternRenderer.render_symbol_page(
+                state, project.width, project.height,
+                x_start=0, y_start=0,
+                x_end=project.width, y_end=project.height,
+                cell_size=10,
+                show_color=True, show_symbol=True,
+                show_stitch=False, show_line=True
+            )
+            response = _send_image(_render_thumbnail_canvas(pattern))
+        else:  # symbolbw
+            pattern = PatternRenderer.render_symbol_page(
+                state, project.width, project.height,
+                x_start=0, y_start=0,
+                x_end=project.width, y_end=project.height,
+                cell_size=10,
+                show_color=False, show_symbol=True,
+                show_stitch=False, show_line=True
+            )
+            response = _send_image(_render_thumbnail_canvas(pattern))
+
+        response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+        return response
+
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        return '', 500
+
+
 @bp.route('/<project_id>/thumbnail-cross')
 def thumbnail_cross(project_id):
     """Thumbnail with colored X stitches on 450x250 canvas."""
@@ -426,17 +514,21 @@ def clone(project_id):
 def smart_preview():
     """Generate a preview of smart image conversion without creating a project.
 
-    Expects multipart form with 'image' file and optional 'max_colors' int.
-    Returns JSON with base64 preview PNG, color count, and cell count.
+    Reads image from temp file stored by smart_position (no upload needed).
+    Also accepts an 'image' file upload for backward compatibility.
+    Returns JSON with base64 preview PNG, color count, cell count, and palette.
     """
     from stitch.services.smart_image_service import SmartImageService
     from stitch.services.pattern_renderer import PatternRenderer
     from stitch.services.color_matcher import ColorMatcher
     import cv2
 
+    # Try to read composed image from temp storage first
+    composed_path = WizardService.get_smart_composed_image_path()
     image_file = request.files.get('image')
-    if not image_file or not image_file.filename:
-        return jsonify({'error': 'No image file provided.'}), 400
+
+    if not composed_path and (not image_file or not image_file.filename):
+        return jsonify({'error': 'No image available. Please upload and position an image first.'}), 400
 
     max_palette_colors = current_app.config.get('MAX_PALETTE_COLORS', 32)
     max_colors = request.form.get('max_colors', type=int) or 32
@@ -452,6 +544,15 @@ def smart_preview():
     dithering = request.form.get('dithering', 'off')
     if dithering not in ('off', 'atkinson'):
         dithering = 'off'
+    sharpness = request.form.get('sharpness', 'medium')
+    if sharpness not in ('off', 'low', 'medium', 'high'):
+        sharpness = 'medium'
+    remove_bg = request.form.get('remove_bg', 'false') == 'true'
+
+    smoothing = request.form.get('smoothing', type=int)
+    if smoothing is None:
+        smoothing = 50
+    smoothing = max(0, min(100, smoothing))
 
     wizard_data = WizardService.get_wizard_data()
     width = wizard_data.get('width', 70)
@@ -467,11 +568,15 @@ def smart_preview():
 
     fake_project = types.SimpleNamespace(width=width, height=height)
 
+    # Use composed path if available, otherwise fall back to uploaded file
+    source = composed_path if composed_path else image_file
+
     try:
         result = SmartImageService.convert_image_to_stitches(
-            fake_project, image_file, max_colors, vendor=vendor,
+            fake_project, source, max_colors, vendor=vendor,
             backstitch=backstitch, edge_detail=edge_detail, despeckle=despeckle,
-            dithering=dithering,
+            dithering=dithering, sharpness=sharpness, remove_bg=remove_bg,
+            smoothing=smoothing,
         )
     except Exception as e:
         logging.exception('Smart preview processing error')
@@ -543,10 +648,21 @@ def smart_preview():
 
     b64 = base64.b64encode(buffer.tobytes()).decode('ascii')
 
+    # Build palette info for display
+    palette_info = []
+    for color in new_colors:
+        palette_info.append({
+            'code': color.get('code', ''),
+            'name': color.get('name', ''),
+            'rgbHex': color.get('rgbHex', '#000000'),
+            'vendor': color.get('vendor', ''),
+        })
+
     return jsonify({
         'preview': f'data:image/png;base64,{b64}',
         'colorCount': len(new_colors),
         'cellCount': cell_count,
+        'palette': palette_info,
     })
 
 
@@ -681,36 +797,6 @@ def new_create():
                 project = WizardService.create_project_from_image(
                     user_id, image_file, max_colors
                 )
-            elif creation_mode == 'smart_image':
-                image_file = request.files.get('image')
-                max_colors = request.form.get('max_colors', type=int) or 32
-
-                if not image_file or not image_file.filename:
-                    flash('No image file provided.', 'danger')
-                    return render_template('projects/new/create.html',
-                                           wizard_data=wizard_data,
-                                           max_palette_colors=max_palette_colors)
-
-                max_colors = min(max_colors, max_palette_colors)
-
-                si_backstitch = request.form.get('backstitch', 'true') == 'true'
-                si_edge_detail = request.form.get('edge_detail', 'medium')
-                if si_edge_detail not in ('low', 'medium', 'high'):
-                    si_edge_detail = 'medium'
-                si_despeckle = request.form.get('despeckle', 'light')
-                if si_despeckle not in ('off', 'light', 'heavy'):
-                    si_despeckle = 'light'
-                si_dithering = request.form.get('dithering', 'off')
-                if si_dithering not in ('off', 'atkinson'):
-                    si_dithering = 'off'
-
-                project = WizardService.create_smart_image_project(
-                    user_id, image_file, max_colors,
-                    backstitch=si_backstitch,
-                    edge_detail=si_edge_detail,
-                    despeckle=si_despeckle,
-                    dithering=si_dithering,
-                )
             else:
                 project = WizardService.create_blank_project(user_id)
 
@@ -728,3 +814,167 @@ def new_create():
     return render_template('projects/new/create.html',
                            wizard_data=wizard_data,
                            max_palette_colors=max_palette_colors)
+
+
+# =============================================================================
+# WIZARD ROUTES - Smart Image Sub-Flow (3 pages)
+# =============================================================================
+
+@bp.route('/new/smart/upload', methods=['GET', 'POST'])
+@login_required
+def smart_upload():
+    """Smart Image step 1: Upload image file."""
+    if not WizardService.validate_wizard_state():
+        flash('Wizard session expired. Please start again.', 'warning')
+        return redirect(url_for('projects.new_name'))
+
+    wizard_data = WizardService.get_wizard_data()
+
+    if request.method == 'POST':
+        from stitch.services.image_service import ImageService
+
+        image_file = request.files.get('image')
+        if not image_file or not image_file.filename:
+            flash('No image file provided.', 'danger')
+            return render_template('projects/new/smart/upload.html',
+                                   wizard_data=wizard_data)
+
+        if not ImageService.allowed_file(image_file.filename):
+            flash('File type not allowed. Use JPG, PNG, or GIF.', 'danger')
+            return render_template('projects/new/smart/upload.html',
+                                   wizard_data=wizard_data)
+
+        WizardService.save_smart_temp_image(image_file)
+        return redirect(url_for('projects.smart_position'))
+
+    return render_template('projects/new/smart/upload.html',
+                           wizard_data=wizard_data)
+
+
+@bp.route('/new/smart/position', methods=['GET', 'POST'])
+@login_required
+def smart_position():
+    """Smart Image step 2: Position and scale image on grid."""
+    if not WizardService.validate_wizard_state():
+        flash('Wizard session expired. Please start again.', 'warning')
+        return redirect(url_for('projects.new_name'))
+
+    temp_path = WizardService.get_smart_temp_image_path()
+    if not temp_path:
+        flash('No image uploaded. Please upload an image first.', 'warning')
+        return redirect(url_for('projects.smart_upload'))
+
+    wizard_data = WizardService.get_wizard_data()
+    max_palette_colors = current_app.config.get('MAX_PALETTE_COLORS', 32)
+
+    if request.method == 'POST':
+        # Receive composed image from canvas
+        composed_file = request.files.get('composed_image')
+        if not composed_file or not composed_file.filename:
+            flash('Failed to compose image. Please try again.', 'danger')
+            return render_template('projects/new/smart/position.html',
+                                   wizard_data=wizard_data,
+                                   max_palette_colors=max_palette_colors)
+
+        # Save max_colors chosen on position page
+        max_colors = request.form.get('max_colors', type=int) or 32
+        max_colors = max(2, min(max_colors, max_palette_colors))
+        WizardService.update_wizard_data({'max_colors': max_colors})
+
+        WizardService.save_smart_composed_image(composed_file)
+        return redirect(url_for('projects.smart_adjust'))
+
+    return render_template('projects/new/smart/position.html',
+                           wizard_data=wizard_data,
+                           max_palette_colors=max_palette_colors)
+
+
+@bp.route('/new/smart/adjust', methods=['GET', 'POST'])
+@login_required
+def smart_adjust():
+    """Smart Image step 3: Adjust settings, preview, and create project."""
+    if not WizardService.validate_wizard_state():
+        flash('Wizard session expired. Please start again.', 'warning')
+        return redirect(url_for('projects.new_name'))
+
+    composed_path = WizardService.get_smart_composed_image_path()
+    if not composed_path:
+        flash('No composed image. Please position your image first.', 'warning')
+        return redirect(url_for('projects.smart_position'))
+
+    wizard_data = WizardService.get_wizard_data()
+    max_palette_colors = current_app.config.get('MAX_PALETTE_COLORS', 32)
+    wizard_max_colors = wizard_data.get('max_colors', 32)
+
+    if request.method == 'POST':
+        user_id = session.get('user_id')
+
+        max_colors = request.form.get('max_colors', type=int) or wizard_max_colors
+        max_colors = max(2, min(max_colors, max_palette_colors))
+
+        backstitch = request.form.get('backstitch', 'true') == 'true'
+        edge_detail = request.form.get('edge_detail', 'medium')
+        if edge_detail not in ('low', 'medium', 'high'):
+            edge_detail = 'medium'
+        despeckle = request.form.get('despeckle', 'light')
+        if despeckle not in ('off', 'light', 'heavy'):
+            despeckle = 'light'
+        dithering = request.form.get('dithering', 'off')
+        if dithering not in ('off', 'atkinson'):
+            dithering = 'off'
+        sharpness = request.form.get('sharpness', 'medium')
+        if sharpness not in ('off', 'low', 'medium', 'high'):
+            sharpness = 'medium'
+        remove_bg = request.form.get('remove_bg', 'false') == 'true'
+
+        smoothing = request.form.get('smoothing', type=int)
+        if smoothing is None:
+            smoothing = 50
+        smoothing = max(0, min(100, smoothing))
+
+        try:
+            project = WizardService.create_smart_image_project(
+                user_id, composed_path, max_colors,
+                backstitch=backstitch,
+                edge_detail=edge_detail,
+                despeckle=despeckle,
+                dithering=dithering,
+                sharpness=sharpness,
+                remove_bg=remove_bg,
+                smoothing=smoothing,
+            )
+            WizardService.clear_wizard()
+            flash(f'Project "{project.name}" created successfully!', 'success')
+            return redirect(url_for('projects.editor', project_id=project.id))
+
+        except Exception as e:
+            logging.exception('Error creating smart image project')
+            flash(f'Error creating project: {str(e)}', 'danger')
+            return render_template('projects/new/smart/adjust.html',
+                                   wizard_data=wizard_data,
+                                   max_palette_colors=max_palette_colors,
+                                   wizard_max_colors=wizard_max_colors)
+
+    return render_template('projects/new/smart/adjust.html',
+                           wizard_data=wizard_data,
+                           max_palette_colors=max_palette_colors,
+                           wizard_max_colors=wizard_max_colors)
+
+
+@bp.route('/new/smart/temp-image')
+@login_required
+def smart_temp_image():
+    """Serve the uploaded temp image for the smart positioner canvas."""
+    import mimetypes
+
+    temp_path = WizardService.get_smart_temp_image_path()
+    if not temp_path:
+        return '', 404
+
+    mime = mimetypes.guess_type(str(temp_path))[0] or 'image/jpeg'
+
+    return send_file(
+        str(temp_path),
+        mimetype=mime,
+        as_attachment=False,
+    )

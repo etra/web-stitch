@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Smart Image - Prepare - Web Stitch{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/wizard.css') }}">
+<link rel="stylesheet" href="{{ url_for('projects.static', filename='projects/projects.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="wizard-container">
+    <div class="wizard-card">
+        <h1 class="text-center mb-4">Prepare Image</h1>
+
+        {% set current_step = 4 %}
+        {% set steps = ['Name', 'Size', 'Vendor', 'Create'] %}
+        {% include 'components/wizard_steps.html' %}
+
+        {% set smart_step = 2 %}
+        {% include 'projects/new/smart/_smart_steps.html' %}
+
+        <div class="image-positioner-canvas-wrap">
+            <canvas id="positioner-canvas"></canvas>
+        </div>
+        <div class="image-positioner-controls">
+            <label class="form-label mb-1">
+                <small>Scale: <span id="positioner-scale-label">100%</span></small>
+            </label>
+            <input type="range" class="form-range" id="positioner-scale"
+                   min="0.1" max="3.0" step="0.05" value="1.0">
+        </div>
+        <p class="text-muted text-center mb-0"><small>Drag image to reposition</small></p>
+
+        <div class="image-adjust-controls mt-3">
+            <h6 class="mb-2">Image Adjustments</h6>
+            <div class="mb-2">
+                <label class="form-label small mb-0">
+                    Brightness: <span id="pos-brightness-label" class="fw-semibold">0</span>
+                </label>
+                <input type="range" class="form-range" id="pos-brightness"
+                       min="-100" max="100" value="0">
+            </div>
+            <div class="mb-2">
+                <label class="form-label small mb-0">
+                    Contrast: <span id="pos-contrast-label" class="fw-semibold">0</span>
+                </label>
+                <input type="range" class="form-range" id="pos-contrast"
+                       min="-100" max="100" value="0">
+            </div>
+            <div class="mb-2">
+                <label class="form-label small mb-0">
+                    Saturation: <span id="pos-saturation-label" class="fw-semibold">0</span>
+                </label>
+                <input type="range" class="form-range" id="pos-saturation"
+                       min="-100" max="100" value="0">
+            </div>
+        </div>
+
+        <div class="image-preview-pair mt-3">
+            <div class="image-preview-col">
+                <div class="image-preview-wrap">
+                    <canvas id="pos-original-preview" class="image-preview-canvas"></canvas>
+                </div>
+                <div class="image-preview-label">Adjusted</div>
+            </div>
+            <div class="image-preview-col">
+                <div class="image-preview-wrap">
+                    <canvas id="pos-quantized-preview" class="image-preview-canvas"></canvas>
+                </div>
+                <div class="image-preview-label">Quantized (<span id="pos-quantized-count">32</span> colors)</div>
+            </div>
+        </div>
+
+        <div class="image-adjust-controls mt-3">
+            <h6 class="mb-2">Color Reduction</h6>
+            <div class="mb-2">
+                <label class="form-label small mb-0">
+                    Maximum Colors: <span id="pos-max-colors-label" class="fw-semibold">32</span>
+                </label>
+                <input type="range" class="form-range" id="pos-max-colors"
+                       min="2" max="{{ max_palette_colors }}" value="32">
+            </div>
+        </div>
+
+        <form method="POST" enctype="multipart/form-data" id="position-form" style="display: none;">
+            <input type="file" name="composed_image" id="composed-image-input">
+            <input type="hidden" name="max_colors" id="pos-max-colors-hidden" value="32">
+        </form>
+
+        <div class="wizard-nav mt-4">
+            <div class="wizard-nav-left">
+                <a href="{{ url_for('projects.smart_upload') }}"
+                   class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Back
+                </a>
+                <a href="{{ url_for('projects.list') }}"
+                   class="btn btn-outline-secondary"
+                   data-wizard-cancel>
+                    <i class="bi bi-x-lg"></i> Cancel
+                </a>
+            </div>
+
+            <div class="wizard-nav-right">
+                <button type="button" class="btn btn-primary" id="position-next-btn">
+                    Next <i class="bi bi-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/wizard.js') }}"></script>
+<script src="{{ url_for('projects.static', filename='projects/projects.js') }}"></script>
+<script>
+    initSmartPositionStep({
+        gridWidth: {{ wizard_data.width }},
+        gridHeight: {{ wizard_data.height }},
+        maxPaletteColors: {{ max_palette_colors }},
+        tempImageUrl: '{{ url_for("projects.smart_temp_image") }}'
+    });
+</script>
+{% endblock %}

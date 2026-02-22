@@ -18,27 +18,6 @@
     object-fit: cover;
 }
 
-/* Carousel within pattern cards */
-.pattern-carousel .carousel-item img {
-    aspect-ratio: 16 / 10;
-    object-fit: cover;
-}
-
-.pattern-carousel-indicators {
-    margin-bottom: 0.25rem;
-}
-
-.pattern-carousel-indicators button {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    opacity: 0.5;
-}
-
-.pattern-carousel-indicators button.active {
-    opacity: 1;
-}
-
 /* Vote controls */
 .vote-controls .vote-btn {
     padding: 0.15rem 0.35rem;

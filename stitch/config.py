@@ -24,11 +24,11 @@ class Config:
 
     # Connection pool settings to prevent "server closed connection" errors
     SQLALCHEMY_ENGINE_OPTIONS = {
-        'pool_size': 10,
+        'pool_size': 5,
         'pool_recycle': 3600,
         'pool_pre_ping': True,
         'pool_timeout': 30,
-        'max_overflow': 20,
+        'max_overflow': 5,
         'connect_args': {
             'connect_timeout': 10,
             'options': '-c statement_timeout=30000'

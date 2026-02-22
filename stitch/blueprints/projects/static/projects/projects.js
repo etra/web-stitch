@@ -415,118 +415,150 @@ function trackEvent(eventName, params) {
 }
 
 /* =============================================================================
+   Shared — Median-Cut Color Quantization
+   ============================================================================= */
+
+/**
+ * Quantize an ImageData to at most maxColors using median-cut.
+ * White-ish pixels (r,g,b > 250) are left untouched.
+ * @param {ImageData} srcData
+ * @param {number} maxColors
+ * @returns {ImageData}
+ */
+function quantizeImageData(srcData, maxColors) {
+    var w = srcData.width, h = srcData.height;
+    var src = srcData.data;
+    var numPixels = w * h;
+
+    var pixels = [];
+    for (var i = 0; i < numPixels; i++) {
+        var off = i * 4;
+        var r = src[off], g = src[off + 1], b = src[off + 2];
+        if (r > 250 && g > 250 && b > 250) continue;
+        pixels.push([r, g, b, i]);
+    }
+
+    if (pixels.length === 0) {
+        return new ImageData(new Uint8ClampedArray(src), w, h);
+    }
+
+    var buckets = [pixels];
+    while (buckets.length < maxColors) {
+        var bestIdx = 0, bestRange = -1, bestCh = 0;
+        for (var bi = 0; bi < buckets.length; bi++) {
+            var bk = buckets[bi];
+            if (bk.length < 2) continue;
+            for (var ch = 0; ch < 3; ch++) {
+                var lo = 255, hi = 0;
+                for (var pi = 0; pi < bk.length; pi++) {
+                    var v = bk[pi][ch];
+                    if (v < lo) lo = v;
+                    if (v > hi) hi = v;
+                }
+                var range = hi - lo;
+                if (range > bestRange) {
+                    bestRange = range;
+                    bestIdx = bi;
+                    bestCh = ch;
+                }
+            }
+        }
+        if (bestRange <= 0) break;
+
+        var toSplit = buckets[bestIdx];
+        toSplit.sort(function(a, b) { return a[bestCh] - b[bestCh]; });
+        var mid = Math.floor(toSplit.length / 2);
+        buckets[bestIdx] = toSplit.slice(0, mid);
+        buckets.push(toSplit.slice(mid));
+    }
+
+    var centers = [];
+    for (var bi = 0; bi < buckets.length; bi++) {
+        var bk = buckets[bi];
+        var sr = 0, sg = 0, sb = 0;
+        for (var pi = 0; pi < bk.length; pi++) {
+            sr += bk[pi][0]; sg += bk[pi][1]; sb += bk[pi][2];
+        }
+        var n = bk.length;
+        centers.push([Math.round(sr / n), Math.round(sg / n), Math.round(sb / n)]);
+    }
+
+    var out = new Uint8ClampedArray(src);
+    for (var bi = 0; bi < buckets.length; bi++) {
+        var c = centers[bi];
+        var bk = buckets[bi];
+        for (var pi = 0; pi < bk.length; pi++) {
+            var off = bk[pi][3] * 4;
+            out[off] = c[0]; out[off + 1] = c[1]; out[off + 2] = c[2];
+        }
+    }
+
+    return new ImageData(out, w, h);
+}
+
+
+/* =============================================================================
    Wizard Create Step - Creation Mode & Image Modal
    ============================================================================= */
 
 /**
  * Initialize the create step with mode selection and from-image modal.
+ * Smart Image mode now navigates to /new/smart/upload instead of opening a modal.
  * @param {Object} config - { gridWidth, gridHeight, maxPaletteColors }
  */
 function initCreateStep(config) {
-    const gridWidth = config.gridWidth;
-    const gridHeight = config.gridHeight;
-    const maxPaletteColors = config.maxPaletteColors;
+    var gridWidth = config.gridWidth;
+    var gridHeight = config.gridHeight;
+    var maxPaletteColors = config.maxPaletteColors;
 
     // DOM elements - mode cards
-    const modeEmpty = document.getElementById('mode-empty');
-    const modeImage = document.getElementById('mode-image');
-    const modeSmartImage = document.getElementById('mode-smart-image');
-    const creationModeInput = document.getElementById('creation-mode-input');
-    const maxColorsInput = document.getElementById('max-colors-input');
-    const imageConfigSummary = document.getElementById('image-config-summary');
-    const imageFilenameEl = document.getElementById('image-filename');
-    const imageMaxColorsEl = document.getElementById('image-max-colors');
-    const reconfigureBtn = document.getElementById('reconfigure-image-btn');
-    const createForm = document.getElementById('create-form');
-    const createBtn = document.getElementById('create-btn');
-
-    // DOM elements - smart image modal
-    const swOverlay = document.getElementById('smart-wizard-overlay');
-    const swTitle = document.getElementById('smart-wizard-title');
-    const swCloseBtn = document.getElementById('smart-wizard-close');
-    const swStepUpload = document.getElementById('sw-step-upload');
-    const swStepPosition = document.getElementById('sw-step-position');
-    const swStepPreview = document.getElementById('sw-step-preview');
-    const swLoading = document.getElementById('sw-loading');
-    const swResult = document.getElementById('sw-result');
-    const swPreviewImg = document.getElementById('sw-preview-img');
-    const swColorCount = document.getElementById('sw-color-count');
-    const swCellCount = document.getElementById('sw-cell-count');
-    const swMaxColors = document.getElementById('sw-max-colors');
-    const swMaxColorsLabel = document.getElementById('sw-max-colors-label');
-    const swBackBtn = document.getElementById('sw-back-btn');
-    const swRefreshBtn = document.getElementById('sw-refresh-btn');
-    const swNextBtn = document.getElementById('sw-next-btn');
-    const swDropZone = document.getElementById('sw-drop-zone');
-    const swFileInput = document.getElementById('sw-file-input');
-    const swDropPrompt = document.getElementById('sw-drop-prompt');
-    const swDropSelected = document.getElementById('sw-drop-selected');
-    const swDropFilename = document.getElementById('sw-drop-filename');
-    const swEdgeDetail = document.getElementById('sw-edge-detail');
-    const swDespeckle = document.getElementById('sw-despeckle');
-    const swBackstitch = document.getElementById('sw-backstitch');
-    const swDithering = document.getElementById('sw-dithering');
-    const swPosCanvas = document.getElementById('sw-positioner-canvas');
-    const swPosScaleSlider = document.getElementById('sw-positioner-scale');
-    const swPosScaleLabel = document.getElementById('sw-positioner-scale-label');
-    const smartConfigSummary = document.getElementById('smart-config-summary');
-    const smartConfigPreview = document.getElementById('smart-config-preview');
-    const smartFilename = document.getElementById('smart-filename');
-    const smartColorsSummary = document.getElementById('smart-colors-summary');
-    const smartReconfigureBtn = document.getElementById('smart-reconfigure-btn');
+    var modeEmpty = document.getElementById('mode-empty');
+    var modeImage = document.getElementById('mode-image');
+    var creationModeInput = document.getElementById('creation-mode-input');
+    var maxColorsInput = document.getElementById('max-colors-input');
+    var imageConfigSummary = document.getElementById('image-config-summary');
+    var imageFilenameEl = document.getElementById('image-filename');
+    var imageMaxColorsEl = document.getElementById('image-max-colors');
+    var reconfigureBtn = document.getElementById('reconfigure-image-btn');
+    var createForm = document.getElementById('create-form');
+    var createBtn = document.getElementById('create-btn');
 
     // DOM elements - from-image modal
-    const overlay = document.getElementById('image-wizard-overlay');
-    const modalTitle = document.getElementById('image-wizard-title');
-    const closeBtn = document.getElementById('image-wizard-close');
-    const stepUpload = document.getElementById('iw-step-upload');
-    const stepPosition = document.getElementById('iw-step-position');
-    const stepColors = document.getElementById('iw-step-colors');
-    const backBtn = document.getElementById('iw-back-btn');
-    const nextBtn = document.getElementById('iw-next-btn');
-    const dropZone = document.getElementById('image-drop-zone');
-    const fileInput = document.getElementById('image-file-input');
-    const dropPrompt = document.getElementById('drop-zone-prompt');
-    const dropSelected = document.getElementById('drop-zone-selected');
-    const dropFilename = document.getElementById('drop-zone-filename');
-    const posCanvas = document.getElementById('positioner-canvas');
-    const posScaleSlider = document.getElementById('positioner-scale');
-    const posScaleLabel = document.getElementById('positioner-scale-label');
-    const iwMaxColors = document.getElementById('iw-max-colors');
-    const iwMaxColorsLabel = document.getElementById('iw-max-colors-label');
-    const iwQuantizedLabel = document.getElementById('iw-quantized-label');
-    const iwPreviewOriginal = document.getElementById('iw-preview-original');
-    const iwPreviewQuantized = document.getElementById('iw-preview-quantized');
-    const configPreviewImg = document.getElementById('image-config-preview');
+    var overlay = document.getElementById('image-wizard-overlay');
+    var modalTitle = document.getElementById('image-wizard-title');
+    var closeBtn = document.getElementById('image-wizard-close');
+    var stepUpload = document.getElementById('iw-step-upload');
+    var stepPosition = document.getElementById('iw-step-position');
+    var stepColors = document.getElementById('iw-step-colors');
+    var backBtn = document.getElementById('iw-back-btn');
+    var nextBtn = document.getElementById('iw-next-btn');
+    var dropZone = document.getElementById('image-drop-zone');
+    var fileInput = document.getElementById('image-file-input');
+    var dropPrompt = document.getElementById('drop-zone-prompt');
+    var dropSelected = document.getElementById('drop-zone-selected');
+    var dropFilename = document.getElementById('drop-zone-filename');
+    var posCanvas = document.getElementById('positioner-canvas');
+    var posScaleSlider = document.getElementById('positioner-scale');
+    var posScaleLabel = document.getElementById('positioner-scale-label');
+    var iwMaxColors = document.getElementById('iw-max-colors');
+    var iwMaxColorsLabel = document.getElementById('iw-max-colors-label');
+    var iwQuantizedLabel = document.getElementById('iw-quantized-label');
+    var iwPreviewOriginal = document.getElementById('iw-preview-original');
+    var iwPreviewQuantized = document.getElementById('iw-preview-quantized');
+    var configPreviewImg = document.getElementById('image-config-preview');
 
     // State - from-image
-    let selectedFile = null;
-    let composedBlob = null;
-    let composedImageData = null; // ImageData from composed canvas for quantization
-    let imageElement = null;
-    let modalStep = 'upload'; // 'upload' | 'position' | 'colors'
+    var selectedFile = null;
+    var composedBlob = null;
+    var composedImageData = null;
+    var imageElement = null;
+    var modalStep = 'upload';
 
     // Image positioner state
-    let imgX = 0, imgY = 0, imgScale = 1.0;
-    let isDragging = false, dragStartX = 0, dragStartY = 0, dragStartImgX = 0, dragStartImgY = 0;
+    var imgX = 0, imgY = 0, imgScale = 1.0;
+    var isDragging = false, dragStartX = 0, dragStartY = 0, dragStartImgX = 0, dragStartImgY = 0;
 
-    const MAX_CANVAS_DISPLAY = 380;
-
-    // State - smart image modal
-    let swFile = null;
-    let swImageEl = null; // loaded Image element for positioner
-    let swComposedBlob = null; // composed PNG blob at grid dimensions
-    let swStep = 'upload'; // 'upload' | 'position' | 'preview'
-    let swPreviewData = null; // base64 preview from server
-    let swConfirmedMaxColors = 32;
-    let swConfirmedEdgeDetail = 'medium';
-    let swConfirmedDespeckle = 'off';
-    let swConfirmedBackstitch = false;
-    let swConfirmedDithering = 'atkinson';
-
-    // Smart image positioner state
-    let swImgX = 0, swImgY = 0, swImgScale = 1.0;
-    let swIsDragging = false, swDragStartX = 0, swDragStartY = 0, swDragStartImgX = 0, swDragStartImgY = 0;
+    var MAX_CANVAS_DISPLAY = 380;
 
     // ---------------------------------------------------------------
     // Mode card selection
@@ -537,16 +569,10 @@ function initCreateStep(config) {
         trackEvent('wizard_mode_select', { mode: mode });
         modeEmpty.classList.toggle('selected', mode === 'empty');
         modeImage.classList.toggle('selected', mode === 'image');
-        if (modeSmartImage) modeSmartImage.classList.toggle('selected', mode === 'smart_image');
 
         if (mode === 'empty') {
             imageConfigSummary.style.display = 'none';
-            smartConfigSummary.style.display = 'none';
             composedBlob = null;
-        } else if (mode === 'image') {
-            smartConfigSummary.style.display = 'none';
-        } else if (mode === 'smart_image') {
-            imageConfigSummary.style.display = 'none';
         }
     }
 
@@ -564,383 +590,8 @@ function initCreateStep(config) {
         });
     }
 
-    // Smart Image mode card → open smart modal
-    if (modeSmartImage) {
-        modeSmartImage.addEventListener('click', function() {
-            openSmartModal();
-        });
-    }
-
-    // Smart Image "Change Settings" button
-    if (smartReconfigureBtn) {
-        smartReconfigureBtn.addEventListener('click', function() {
-            openSmartModal();
-        });
-    }
-
     // ---------------------------------------------------------------
-    // Smart Image Modal
-    // ---------------------------------------------------------------
-
-    function openSmartModal() {
-        swOverlay.style.display = 'flex';
-        showSmartStep('upload');
-    }
-
-    function closeSmartModal() {
-        swOverlay.style.display = 'none';
-    }
-
-    swCloseBtn.addEventListener('click', closeSmartModal);
-    swOverlay.addEventListener('click', function(e) {
-        if (e.target === swOverlay) closeSmartModal();
-    });
-
-    function showSmartStep(step) {
-        swStep = step;
-        trackEvent('wizard_smart_step', { step: step });
-        swStepUpload.style.display = step === 'upload' ? '' : 'none';
-        swStepPosition.style.display = step === 'position' ? '' : 'none';
-        swStepPreview.style.display = step === 'preview' ? '' : 'none';
-        swBackBtn.style.display = step === 'upload' ? 'none' : '';
-        swRefreshBtn.style.display = step === 'preview' ? '' : 'none';
-
-        if (step === 'upload') {
-            swTitle.textContent = 'Upload Image';
-            swNextBtn.innerHTML = 'Next <i class="bi bi-arrow-right"></i>';
-            swNextBtn.disabled = !swFile;
-        } else if (step === 'position') {
-            swTitle.textContent = 'Position Image';
-            swNextBtn.innerHTML = 'Next <i class="bi bi-arrow-right"></i>';
-            swNextBtn.disabled = false;
-            initSwPositioner();
-        } else if (step === 'preview') {
-            swTitle.textContent = 'Preview';
-            swNextBtn.innerHTML = '<i class="bi bi-check-lg"></i> Confirm';
-            swNextBtn.disabled = true;
-            composeSmartImage();
-            fetchSmartPreview(swComposedBlob, parseInt(swMaxColors.value) || 32);
-        }
-    }
-
-    swNextBtn.addEventListener('click', function() {
-        if (swStep === 'upload') {
-            showSmartStep('position');
-        } else if (swStep === 'position') {
-            showSmartStep('preview');
-        } else if (swStep === 'preview') {
-            // Confirm — store settings and close modal
-            swConfirmedMaxColors = parseInt(swMaxColors.value) || 32;
-            swConfirmedEdgeDetail = swEdgeDetail.value;
-            swConfirmedDespeckle = swDespeckle.value;
-            swConfirmedBackstitch = swBackstitch.checked;
-            swConfirmedDithering = swDithering.value;
-            trackEvent('wizard_smart_confirm', {
-                max_colors: swConfirmedMaxColors,
-                edge_detail: swConfirmedEdgeDetail,
-                despeckle: swConfirmedDespeckle,
-                backstitch: swConfirmedBackstitch ? 'on' : 'off',
-                dithering: swConfirmedDithering,
-            });
-            selectMode('smart_image');
-            smartConfigSummary.style.display = '';
-            smartConfigPreview.src = swPreviewData || '';
-            smartFilename.textContent = swFile ? swFile.name : '—';
-            smartColorsSummary.textContent = swColorCount.textContent;
-            closeSmartModal();
-        }
-    });
-
-    swBackBtn.addEventListener('click', function() {
-        if (swStep === 'position') {
-            showSmartStep('upload');
-        } else if (swStep === 'preview') {
-            showSmartStep('position');
-        }
-    });
-
-    // Smart modal drop zone
-    swDropZone.addEventListener('click', function() {
-        swFileInput.click();
-    });
-
-    swFileInput.addEventListener('change', function() {
-        var file = swFileInput.files[0];
-        if (file) handleSwFileSelected(file);
-    });
-
-    swDropZone.addEventListener('dragover', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.dataTransfer.dropEffect = 'copy';
-        swDropZone.classList.add('active');
-    });
-
-    swDropZone.addEventListener('dragenter', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        swDropZone.classList.add('active');
-    });
-
-    swDropZone.addEventListener('dragleave', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        swDropZone.classList.remove('active');
-    });
-
-    swDropZone.addEventListener('drop', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        swDropZone.classList.remove('active');
-        var file = e.dataTransfer.files[0];
-        if (file) handleSwFileSelected(file);
-    });
-
-    function handleSwFileSelected(file) {
-        swFile = file;
-        swDropPrompt.style.display = 'none';
-        swDropSelected.style.display = 'flex';
-        swDropFilename.textContent = file.name;
-        swNextBtn.disabled = false;
-
-        // Load image element for positioner
-        var objectUrl = URL.createObjectURL(file);
-        var img = new Image();
-        img.onload = function() {
-            URL.revokeObjectURL(objectUrl);
-            swImageEl = img;
-            // Compute default fit and center
-            var imgAspect = img.naturalWidth / img.naturalHeight;
-            var gridAspect = gridWidth / gridHeight;
-            if (imgAspect > gridAspect) {
-                swImgX = 0;
-                swImgY = (gridHeight - gridWidth / imgAspect) / 2;
-            } else {
-                swImgX = (gridWidth - gridHeight * imgAspect) / 2;
-                swImgY = 0;
-            }
-            swImgScale = 1.0;
-            swPosScaleSlider.value = '1.0';
-            swPosScaleLabel.textContent = '100%';
-        };
-        img.src = objectUrl;
-    }
-
-    // ---------------------------------------------------------------
-    // Smart Image Positioner
-    // ---------------------------------------------------------------
-
-    function swGetDisplayScale() {
-        return MAX_CANVAS_DISPLAY / Math.max(gridWidth, gridHeight);
-    }
-
-    function swGetFitSize() {
-        if (!swImageEl) return { w: 0, h: 0 };
-        var imgAspect = swImageEl.naturalWidth / swImageEl.naturalHeight;
-        var gridAspect = gridWidth / gridHeight;
-        if (imgAspect > gridAspect) {
-            return { w: gridWidth, h: gridWidth / imgAspect };
-        } else {
-            return { w: gridHeight * imgAspect, h: gridHeight };
-        }
-    }
-
-    function initSwPositioner() {
-        if (!swImageEl) return;
-        drawSwPositionerCanvas();
-    }
-
-    function drawSwPositionerCanvas() {
-        var ds = swGetDisplayScale();
-        var cw = Math.round(gridWidth * ds);
-        var ch = Math.round(gridHeight * ds);
-        swPosCanvas.width = cw;
-        swPosCanvas.height = ch;
-        swPosCanvas.style.maxWidth = cw + 'px';
-
-        var ctx = swPosCanvas.getContext('2d');
-        if (!ctx) return;
-
-        // Checkerboard background
-        var checkSize = Math.max(4, Math.round(ds / 2));
-        for (var y = 0; y < ch; y += checkSize) {
-            for (var x = 0; x < cw; x += checkSize) {
-                ctx.fillStyle = ((x / checkSize + y / checkSize) % 2 === 0) ? '#3a3a3a' : '#2a2a2a';
-                ctx.fillRect(x, y, checkSize, checkSize);
-            }
-        }
-
-        // Draw image
-        if (swImageEl) {
-            var fit = swGetFitSize();
-            var drawW = fit.w * swImgScale;
-            var drawH = fit.h * swImgScale;
-            ctx.drawImage(swImageEl, swImgX * ds, swImgY * ds, drawW * ds, drawH * ds);
-        }
-
-        // Grid border
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(0.5, 0.5, cw - 1, ch - 1);
-
-        // Crosshair lines
-        ctx.setLineDash([4, 4]);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-        ctx.lineWidth = 1;
-        var midX = Math.round(cw / 2) + 0.5;
-        var midY = Math.round(ch / 2) + 0.5;
-        ctx.beginPath();
-        ctx.moveTo(midX, 0);
-        ctx.lineTo(midX, ch);
-        ctx.moveTo(0, midY);
-        ctx.lineTo(cw, midY);
-        ctx.stroke();
-        ctx.setLineDash([]);
-    }
-
-    // Canvas mouse drag
-    swPosCanvas.addEventListener('mousedown', function(e) {
-        e.preventDefault();
-        swIsDragging = true;
-        swDragStartX = e.clientX;
-        swDragStartY = e.clientY;
-        swDragStartImgX = swImgX;
-        swDragStartImgY = swImgY;
-        swPosCanvas.style.cursor = 'grabbing';
-    });
-
-    document.addEventListener('mousemove', function(e) {
-        if (!swIsDragging) return;
-        var ds = swGetDisplayScale();
-        swImgX = swDragStartImgX + (e.clientX - swDragStartX) / ds;
-        swImgY = swDragStartImgY + (e.clientY - swDragStartY) / ds;
-        drawSwPositionerCanvas();
-    });
-
-    document.addEventListener('mouseup', function() {
-        if (swIsDragging) {
-            swIsDragging = false;
-            swPosCanvas.style.cursor = 'grab';
-        }
-    });
-
-    swPosCanvas.style.cursor = 'grab';
-
-    // Scale slider
-    swPosScaleSlider.addEventListener('input', function() {
-        var newScale = parseFloat(swPosScaleSlider.value);
-        if (!swImageEl) return;
-
-        // Re-center around current image center
-        var fit = swGetFitSize();
-        var oldW = fit.w * swImgScale;
-        var oldH = fit.h * swImgScale;
-        var cx = swImgX + oldW / 2;
-        var cy = swImgY + oldH / 2;
-
-        var newW = fit.w * newScale;
-        var newH = fit.h * newScale;
-        swImgX = cx - newW / 2;
-        swImgY = cy - newH / 2;
-        swImgScale = newScale;
-
-        swPosScaleLabel.textContent = Math.round(newScale * 100) + '%';
-        drawSwPositionerCanvas();
-    });
-
-    // ---------------------------------------------------------------
-    // Compose smart image (grid-size canvas → blob)
-    // ---------------------------------------------------------------
-
-    function dataUrlToBlobSw(dataUrl) {
-        var parts = dataUrl.split(',');
-        var mime = parts[0].match(/:(.*?);/)[1];
-        var raw = atob(parts[1]);
-        var arr = new Uint8Array(raw.length);
-        for (var i = 0; i < raw.length; i++) {
-            arr[i] = raw.charCodeAt(i);
-        }
-        return new Blob([arr], { type: mime });
-    }
-
-    function composeSmartImage() {
-        var canvas = document.createElement('canvas');
-        canvas.width = gridWidth;
-        canvas.height = gridHeight;
-        var ctx = canvas.getContext('2d');
-        if (!ctx || !swImageEl) return;
-
-        // White background
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, gridWidth, gridHeight);
-
-        var fit = swGetFitSize();
-        var drawW = fit.w * swImgScale;
-        var drawH = fit.h * swImgScale;
-        ctx.drawImage(swImageEl, swImgX, swImgY, drawW, drawH);
-
-        var dataUrl = canvas.toDataURL('image/png');
-        swComposedBlob = dataUrlToBlobSw(dataUrl);
-    }
-
-    // Smart modal slider → update label only
-    swMaxColors.addEventListener('input', function() {
-        swMaxColorsLabel.textContent = swMaxColors.value;
-    });
-
-    // Refresh button → re-compose and re-fetch preview
-    swRefreshBtn.addEventListener('click', function() {
-        composeSmartImage();
-        fetchSmartPreview(swComposedBlob, parseInt(swMaxColors.value) || 32);
-    });
-
-    function fetchSmartPreview(blob, maxColors) {
-        if (!blob) return;
-        swLoading.style.display = '';
-        swResult.style.display = 'none';
-        swNextBtn.disabled = true;
-
-        var fd = new FormData();
-        fd.append('image', blob, 'composed.png');
-        fd.append('max_colors', maxColors);
-        fd.append('edge_detail', swEdgeDetail.value);
-        fd.append('despeckle', swDespeckle.value);
-        fd.append('backstitch', swBackstitch.checked ? 'true' : 'false');
-        fd.append('dithering', swDithering.value);
-
-        fetch('/projects/new/smart-preview', {
-            method: 'POST',
-            body: fd
-        })
-        .then(function(resp) { return resp.json(); })
-        .then(function(data) {
-            if (data.error) {
-                swLoading.style.display = 'none';
-                swResult.style.display = '';
-                swPreviewImg.style.display = 'none';
-                swColorCount.textContent = '—';
-                swCellCount.textContent = '—';
-                alert(data.error);
-                return;
-            }
-            swPreviewData = data.preview;
-            swPreviewImg.src = data.preview;
-            swPreviewImg.style.display = '';
-            swColorCount.textContent = data.colorCount;
-            swCellCount.textContent = data.cellCount;
-            swLoading.style.display = 'none';
-            swResult.style.display = '';
-            swNextBtn.disabled = false;
-        })
-        .catch(function() {
-            swLoading.style.display = 'none';
-            swResult.style.display = '';
-            alert('An error occurred while generating the preview.');
-        });
-    }
-
-    // ---------------------------------------------------------------
-    // Modal open/close
+    // From-Image Modal open/close
     // ---------------------------------------------------------------
 
     function openModal() {
@@ -971,7 +622,6 @@ function initCreateStep(config) {
 
         if (step === 'upload') {
             modalTitle.textContent = 'Upload Image';
-            nextBtn.textContent = 'Next ';
             nextBtn.innerHTML = 'Next <i class="bi bi-arrow-right"></i>';
             nextBtn.disabled = !selectedFile;
         } else if (step === 'position') {
@@ -994,12 +644,10 @@ function initCreateStep(config) {
             composeImage();
             showModalStep('colors');
         } else if (modalStep === 'colors') {
-            // Confirm — store settings and close modal
             var mc = parseInt(iwMaxColors.value) || 16;
             mc = Math.max(2, Math.min(mc, maxPaletteColors));
             maxColorsInput.value = mc;
 
-            // Draw quantized preview into summary thumbnail
             if (configPreviewImg && composedImageData) {
                 var quantized = quantizeImageData(composedImageData, mc);
                 drawPreviewCanvas(configPreviewImg, quantized);
@@ -1069,13 +717,11 @@ function initCreateStep(config) {
         dropFilename.textContent = file.name;
         nextBtn.disabled = false;
 
-        // Load image element for positioner
         var objectUrl = URL.createObjectURL(file);
         var img = new Image();
         img.onload = function() {
             URL.revokeObjectURL(objectUrl);
             imageElement = img;
-            // Compute default fit and center
             var imgAspect = img.naturalWidth / img.naturalHeight;
             var gridAspect = gridWidth / gridHeight;
             var fitW, fitH;
@@ -1130,7 +776,6 @@ function initCreateStep(config) {
         var ctx = posCanvas.getContext('2d');
         if (!ctx) return;
 
-        // Checkerboard background
         var checkSize = Math.max(4, Math.round(ds / 2));
         for (var y = 0; y < ch; y += checkSize) {
             for (var x = 0; x < cw; x += checkSize) {
@@ -1139,7 +784,6 @@ function initCreateStep(config) {
             }
         }
 
-        // Draw image
         if (imageElement) {
             var fit = getFitSize();
             var drawW = fit.w * imgScale;
@@ -1147,12 +791,10 @@ function initCreateStep(config) {
             ctx.drawImage(imageElement, imgX * ds, imgY * ds, drawW * ds, drawH * ds);
         }
 
-        // Grid border
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
         ctx.lineWidth = 1;
         ctx.strokeRect(0.5, 0.5, cw - 1, ch - 1);
 
-        // Crosshair lines (center of grid)
         ctx.setLineDash([4, 4]);
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
         ctx.lineWidth = 1;
@@ -1167,7 +809,6 @@ function initCreateStep(config) {
         ctx.setLineDash([]);
     }
 
-    // Canvas mouse drag
     posCanvas.addEventListener('mousedown', function(e) {
         e.preventDefault();
         isDragging = true;
@@ -1195,12 +836,10 @@ function initCreateStep(config) {
 
     posCanvas.style.cursor = 'grab';
 
-    // Scale slider
     posScaleSlider.addEventListener('input', function() {
         var newScale = parseFloat(posScaleSlider.value);
         if (!imageElement) return;
 
-        // Re-center around current image center
         var fit = getFitSize();
         var oldW = fit.w * imgScale;
         var oldH = fit.h * imgScale;
@@ -1218,7 +857,7 @@ function initCreateStep(config) {
     });
 
     // ---------------------------------------------------------------
-    // Compose final image (synchronous — no race condition)
+    // Compose final image
     // ---------------------------------------------------------------
 
     function dataUrlToBlob(dataUrl) {
@@ -1239,7 +878,6 @@ function initCreateStep(config) {
         var ctx = canvas.getContext('2d');
         if (!ctx || !imageElement) return;
 
-        // White background (avoids transparent PNG → white-after-alpha-removal issues)
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, gridWidth, gridHeight);
 
@@ -1248,17 +886,12 @@ function initCreateStep(config) {
         var drawH = fit.h * imgScale;
         ctx.drawImage(imageElement, imgX, imgY, drawW, drawH);
 
-        // Store pixel data for quantization preview
         composedImageData = ctx.getImageData(0, 0, gridWidth, gridHeight);
 
-        // Synchronous: toDataURL is instant, no race condition
         var dataUrl = canvas.toDataURL('image/png');
         composedBlob = dataUrlToBlob(dataUrl);
 
-        // Draw original preview canvas
         drawPreviewCanvas(iwPreviewOriginal, composedImageData);
-
-        // Draw quantized preview
         updateQuantizedPreview();
     }
 
@@ -1272,103 +905,19 @@ function initCreateStep(config) {
         if (!canvasEl || !imgData) return;
         var sw = imgData.width, sh = imgData.height;
         var scale = Math.min(PREVIEW_MAX / sw, PREVIEW_MAX / sh, 1);
-        // Use at least the source size so pixelated rendering looks crisp
         var dw = Math.round(sw * Math.max(scale, PREVIEW_MAX / Math.max(sw, sh)));
         var dh = Math.round(sh * Math.max(scale, PREVIEW_MAX / Math.max(sw, sh)));
 
-        // Draw source data to a temp canvas at original size
         var tmp = document.createElement('canvas');
         tmp.width = sw;
         tmp.height = sh;
         tmp.getContext('2d').putImageData(imgData, 0, 0);
 
-        // Draw scaled to display canvas
         canvasEl.width = dw;
         canvasEl.height = dh;
         var ctx = canvasEl.getContext('2d');
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(tmp, 0, 0, dw, dh);
-    }
-
-    /**
-     * Median-cut color quantization on ImageData.
-     * Returns a new ImageData with colors reduced to maxColors.
-     */
-    function quantizeImageData(srcData, maxColors) {
-        var w = srcData.width, h = srcData.height;
-        var src = srcData.data;
-        var numPixels = w * h;
-
-        // Collect all non-white pixels as [r, g, b, index]
-        var pixels = [];
-        for (var i = 0; i < numPixels; i++) {
-            var off = i * 4;
-            var r = src[off], g = src[off + 1], b = src[off + 2];
-            if (r > 250 && g > 250 && b > 250) continue; // skip white
-            pixels.push([r, g, b, i]);
-        }
-
-        if (pixels.length === 0) {
-            return new ImageData(new Uint8ClampedArray(src), w, h);
-        }
-
-        // Median cut: split pixel list into buckets by widest channel range
-        var buckets = [pixels];
-        while (buckets.length < maxColors) {
-            // Find bucket with widest channel range
-            var bestIdx = 0, bestRange = -1, bestCh = 0;
-            for (var bi = 0; bi < buckets.length; bi++) {
-                var bk = buckets[bi];
-                if (bk.length < 2) continue;
-                for (var ch = 0; ch < 3; ch++) {
-                    var lo = 255, hi = 0;
-                    for (var pi = 0; pi < bk.length; pi++) {
-                        var v = bk[pi][ch];
-                        if (v < lo) lo = v;
-                        if (v > hi) hi = v;
-                    }
-                    var range = hi - lo;
-                    if (range > bestRange) {
-                        bestRange = range;
-                        bestIdx = bi;
-                        bestCh = ch;
-                    }
-                }
-            }
-            if (bestRange <= 0) break;
-
-            // Sort that bucket by the widest channel and split at median
-            var toSplit = buckets[bestIdx];
-            toSplit.sort(function(a, b) { return a[bestCh] - b[bestCh]; });
-            var mid = Math.floor(toSplit.length / 2);
-            buckets[bestIdx] = toSplit.slice(0, mid);
-            buckets.push(toSplit.slice(mid));
-        }
-
-        // Compute average color per bucket
-        var centers = [];
-        for (var bi = 0; bi < buckets.length; bi++) {
-            var bk = buckets[bi];
-            var sr = 0, sg = 0, sb = 0;
-            for (var pi = 0; pi < bk.length; pi++) {
-                sr += bk[pi][0]; sg += bk[pi][1]; sb += bk[pi][2];
-            }
-            var n = bk.length;
-            centers.push([Math.round(sr / n), Math.round(sg / n), Math.round(sb / n)]);
-        }
-
-        // Build output: map each non-white pixel to nearest center
-        var out = new Uint8ClampedArray(src);
-        for (var bi = 0; bi < buckets.length; bi++) {
-            var c = centers[bi];
-            var bk = buckets[bi];
-            for (var pi = 0; pi < bk.length; pi++) {
-                var off = bk[pi][3] * 4;
-                out[off] = c[0]; out[off + 1] = c[1]; out[off + 2] = c[2];
-            }
-        }
-
-        return new ImageData(out, w, h);
     }
 
     function updateQuantizedPreview() {
@@ -1383,13 +932,12 @@ function initCreateStep(config) {
         if (iwMaxColorsLabel) iwMaxColorsLabel.textContent = mc + ' colors';
     }
 
-    // Update quantized preview when slider changes
     iwMaxColors.addEventListener('input', function() {
         updateQuantizedPreview();
     });
 
     // ---------------------------------------------------------------
-    // Form submission
+    // Form submission (Empty + From Image only)
     // ---------------------------------------------------------------
 
     createForm.addEventListener('submit', function(e) {
@@ -1423,40 +971,544 @@ function initCreateStep(config) {
                 createBtn.innerHTML = '<i class="bi bi-check-lg"></i> Create Project';
                 alert('An error occurred. Please try again.');
             });
-        } else if (mode === 'smart_image') {
-            e.preventDefault();
+        }
+        // else: empty mode — let normal form submit proceed
+    });
+}
 
-            if (!swComposedBlob) {
-                alert('Please select and position an image first.');
+
+/* =============================================================================
+   Smart Image — Upload Step
+   ============================================================================= */
+
+/**
+ * Initialize the smart image upload page.
+ */
+function initSmartUploadStep() {
+    var dropZone = document.getElementById('smart-drop-zone');
+    var fileInput = document.getElementById('smart-file-input');
+    var dropPrompt = document.getElementById('smart-drop-prompt');
+    var dropSelected = document.getElementById('smart-drop-selected');
+    var dropFilename = document.getElementById('smart-drop-filename');
+    var nextBtn = document.getElementById('upload-next-btn');
+
+    if (!dropZone || !fileInput) return;
+
+    dropZone.addEventListener('click', function() {
+        fileInput.click();
+    });
+
+    fileInput.addEventListener('change', function() {
+        if (fileInput.files[0]) showSelected(fileInput.files[0]);
+    });
+
+    dropZone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'copy';
+        dropZone.classList.add('active');
+    });
+
+    dropZone.addEventListener('dragenter', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.add('active');
+    });
+
+    dropZone.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.remove('active');
+    });
+
+    dropZone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.remove('active');
+        var file = e.dataTransfer.files[0];
+        if (file) {
+            // Set file on the hidden input via DataTransfer
+            var dt = new DataTransfer();
+            dt.items.add(file);
+            fileInput.files = dt.files;
+            showSelected(file);
+        }
+    });
+
+    function showSelected(file) {
+        dropPrompt.style.display = 'none';
+        dropSelected.style.display = 'flex';
+        dropFilename.textContent = file.name;
+        nextBtn.disabled = false;
+    }
+}
+
+
+/* =============================================================================
+   Smart Image — Position Step
+   ============================================================================= */
+
+/**
+ * Initialize the smart image position page.
+ * @param {Object} config - { gridWidth, gridHeight, tempImageUrl }
+ */
+function initSmartPositionStep(config) {
+    var gridWidth = config.gridWidth;
+    var gridHeight = config.gridHeight;
+    var tempImageUrl = config.tempImageUrl;
+
+    var posCanvas = document.getElementById('positioner-canvas');
+    var posScaleSlider = document.getElementById('positioner-scale');
+    var posScaleLabel = document.getElementById('positioner-scale-label');
+    var nextBtn = document.getElementById('position-next-btn');
+    var positionForm = document.getElementById('position-form');
+    var composedInput = document.getElementById('composed-image-input');
+
+    // Image adjustment sliders
+    var brightnessSlider = document.getElementById('pos-brightness');
+    var brightnessLabel = document.getElementById('pos-brightness-label');
+    var contrastSlider = document.getElementById('pos-contrast');
+    var contrastLabel = document.getElementById('pos-contrast-label');
+    var saturationSlider = document.getElementById('pos-saturation');
+    var saturationLabel = document.getElementById('pos-saturation-label');
+
+    // Max colors slider + preview pair
+    var maxPaletteColors = config.maxPaletteColors || 128;
+    var maxColorsSlider = document.getElementById('pos-max-colors');
+    var maxColorsLabel = document.getElementById('pos-max-colors-label');
+    var maxColorsHidden = document.getElementById('pos-max-colors-hidden');
+    var originalPreviewCanvas = document.getElementById('pos-original-preview');
+    var quantizedPreviewCanvas = document.getElementById('pos-quantized-preview');
+    var quantizedCountLabel = document.getElementById('pos-quantized-count');
+
+    var MAX_CANVAS_DISPLAY = 380;
+
+    var imageEl = null;
+    var imgX = 0, imgY = 0, imgScale = 1.0;
+    var isDragging = false, dragStartX = 0, dragStartY = 0, dragStartImgX = 0, dragStartImgY = 0;
+
+    // Load image from server
+    var img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = function() {
+        imageEl = img;
+        // Compute default fit and center
+        var imgAspect = img.naturalWidth / img.naturalHeight;
+        var gridAspect = gridWidth / gridHeight;
+        var fitW, fitH;
+        if (imgAspect > gridAspect) {
+            fitW = gridWidth;
+            fitH = gridWidth / imgAspect;
+        } else {
+            fitH = gridHeight;
+            fitW = gridHeight * imgAspect;
+        }
+        imgX = (gridWidth - fitW) / 2;
+        imgY = (gridHeight - fitH) / 2;
+        imgScale = 1.0;
+        drawCanvas();
+        scheduleQuantizedPreview();
+    };
+    img.src = tempImageUrl;
+
+    function getDisplayScale() {
+        return MAX_CANVAS_DISPLAY / Math.max(gridWidth, gridHeight);
+    }
+
+    function getFitSize() {
+        if (!imageEl) return { w: 0, h: 0 };
+        var imgAspect = imageEl.naturalWidth / imageEl.naturalHeight;
+        var gridAspect = gridWidth / gridHeight;
+        if (imgAspect > gridAspect) {
+            return { w: gridWidth, h: gridWidth / imgAspect };
+        } else {
+            return { w: gridHeight * imgAspect, h: gridHeight };
+        }
+    }
+
+    function buildFilterString() {
+        var b = 1 + (parseInt(brightnessSlider.value) || 0) / 100;
+        var c = 1 + (parseInt(contrastSlider.value) || 0) / 100;
+        var s = 1 + (parseInt(saturationSlider.value) || 0) / 100;
+        return 'brightness(' + b + ') contrast(' + c + ') saturate(' + s + ')';
+    }
+
+    function drawCanvas() {
+        var ds = getDisplayScale();
+        var cw = Math.round(gridWidth * ds);
+        var ch = Math.round(gridHeight * ds);
+        posCanvas.width = cw;
+        posCanvas.height = ch;
+        posCanvas.style.maxWidth = cw + 'px';
+
+        var ctx = posCanvas.getContext('2d');
+        if (!ctx) return;
+
+        // Checkerboard
+        var checkSize = Math.max(4, Math.round(ds / 2));
+        for (var y = 0; y < ch; y += checkSize) {
+            for (var x = 0; x < cw; x += checkSize) {
+                ctx.fillStyle = ((x / checkSize + y / checkSize) % 2 === 0) ? '#3a3a3a' : '#2a2a2a';
+                ctx.fillRect(x, y, checkSize, checkSize);
+            }
+        }
+
+        if (imageEl) {
+            var fit = getFitSize();
+            var drawW = fit.w * imgScale;
+            var drawH = fit.h * imgScale;
+            ctx.filter = buildFilterString();
+            ctx.drawImage(imageEl, imgX * ds, imgY * ds, drawW * ds, drawH * ds);
+            ctx.filter = 'none';
+        }
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0.5, 0.5, cw - 1, ch - 1);
+
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.lineWidth = 1;
+        var midX = Math.round(cw / 2) + 0.5;
+        var midY = Math.round(ch / 2) + 0.5;
+        ctx.beginPath();
+        ctx.moveTo(midX, 0);
+        ctx.lineTo(midX, ch);
+        ctx.moveTo(0, midY);
+        ctx.lineTo(cw, midY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    posCanvas.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        isDragging = true;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        dragStartImgX = imgX;
+        dragStartImgY = imgY;
+        posCanvas.style.cursor = 'grabbing';
+    });
+
+    document.addEventListener('mousemove', function(e) {
+        if (!isDragging) return;
+        var ds = getDisplayScale();
+        imgX = dragStartImgX + (e.clientX - dragStartX) / ds;
+        imgY = dragStartImgY + (e.clientY - dragStartY) / ds;
+        drawCanvas();
+    });
+
+    document.addEventListener('mouseup', function() {
+        if (isDragging) {
+            isDragging = false;
+            posCanvas.style.cursor = 'grab';
+            scheduleQuantizedPreview();
+        }
+    });
+
+    posCanvas.style.cursor = 'grab';
+
+    posScaleSlider.addEventListener('input', function() {
+        var newScale = parseFloat(posScaleSlider.value);
+        if (!imageEl) return;
+
+        var fit = getFitSize();
+        var oldW = fit.w * imgScale;
+        var oldH = fit.h * imgScale;
+        var cx = imgX + oldW / 2;
+        var cy = imgY + oldH / 2;
+
+        var newW = fit.w * newScale;
+        var newH = fit.h * newScale;
+        imgX = cx - newW / 2;
+        imgY = cy - newH / 2;
+        imgScale = newScale;
+
+        posScaleLabel.textContent = Math.round(newScale * 100) + '%';
+        drawCanvas();
+        scheduleQuantizedPreview();
+    });
+
+    // Image adjustment slider listeners
+    brightnessSlider.addEventListener('input', function() {
+        brightnessLabel.textContent = brightnessSlider.value;
+        drawCanvas();
+        scheduleQuantizedPreview();
+    });
+    contrastSlider.addEventListener('input', function() {
+        contrastLabel.textContent = contrastSlider.value;
+        drawCanvas();
+        scheduleQuantizedPreview();
+    });
+    saturationSlider.addEventListener('input', function() {
+        saturationLabel.textContent = saturationSlider.value;
+        drawCanvas();
+        scheduleQuantizedPreview();
+    });
+
+    // Quantized preview — debounced
+    var quantizeTimer = null;
+    var QUANTIZE_DEBOUNCE = 400;
+
+    function scheduleQuantizedPreview() {
+        if (quantizeTimer) clearTimeout(quantizeTimer);
+        quantizeTimer = setTimeout(updateQuantizedPreview, QUANTIZE_DEBOUNCE);
+    }
+
+    function drawPreviewToCanvas(targetCanvas, srcImageData) {
+        var maxPreview = 160;
+        var sw = srcImageData.width, sh = srcImageData.height;
+        var ratio = Math.max(maxPreview / Math.max(sw, sh), 1);
+        var dw = Math.round(sw * ratio);
+        var dh = Math.round(sh * ratio);
+
+        var tmp = document.createElement('canvas');
+        tmp.width = sw;
+        tmp.height = sh;
+        tmp.getContext('2d').putImageData(srcImageData, 0, 0);
+
+        targetCanvas.width = dw;
+        targetCanvas.height = dh;
+        var ctx = targetCanvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(tmp, 0, 0, dw, dh);
+    }
+
+    function updateQuantizedPreview() {
+        if (!imageEl || !quantizedPreviewCanvas) return;
+
+        // Compose at grid resolution with filters
+        var tmpCanvas = document.createElement('canvas');
+        tmpCanvas.width = gridWidth;
+        tmpCanvas.height = gridHeight;
+        var tmpCtx = tmpCanvas.getContext('2d');
+        if (!tmpCtx) return;
+
+        tmpCtx.fillStyle = '#ffffff';
+        tmpCtx.fillRect(0, 0, gridWidth, gridHeight);
+
+        var fit = getFitSize();
+        var drawW = fit.w * imgScale;
+        var drawH = fit.h * imgScale;
+        tmpCtx.filter = buildFilterString();
+        tmpCtx.drawImage(imageEl, imgX, imgY, drawW, drawH);
+        tmpCtx.filter = 'none';
+
+        var imgData = tmpCtx.getImageData(0, 0, gridWidth, gridHeight);
+
+        // Draw adjusted original
+        if (originalPreviewCanvas) {
+            drawPreviewToCanvas(originalPreviewCanvas, imgData);
+        }
+
+        // Draw quantized version
+        var mc = parseInt(maxColorsSlider.value) || 32;
+        mc = Math.max(2, Math.min(mc, maxPaletteColors));
+        var quantized = quantizeImageData(imgData, mc);
+        drawPreviewToCanvas(quantizedPreviewCanvas, quantized);
+
+        if (quantizedCountLabel) {
+            quantizedCountLabel.textContent = mc;
+        }
+    }
+
+    maxColorsSlider.addEventListener('input', function() {
+        maxColorsLabel.textContent = maxColorsSlider.value;
+        scheduleQuantizedPreview();
+    });
+
+    // Next button — compose at high resolution and submit
+    nextBtn.addEventListener('click', function() {
+        if (!imageEl) return;
+
+        nextBtn.disabled = true;
+        nextBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Composing...';
+
+        var maxDim = Math.max(gridWidth, gridHeight);
+        var composeFactor = Math.max(1, Math.min(8, Math.floor(2048 / maxDim)));
+
+        var cw = gridWidth * composeFactor;
+        var ch = gridHeight * composeFactor;
+
+        var canvas = document.createElement('canvas');
+        canvas.width = cw;
+        canvas.height = ch;
+        var ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, cw, ch);
+
+        var fit = getFitSize();
+        var drawW = fit.w * imgScale * composeFactor;
+        var drawH = fit.h * imgScale * composeFactor;
+        ctx.filter = buildFilterString();
+        ctx.drawImage(imageEl, imgX * composeFactor, imgY * composeFactor, drawW, drawH);
+        ctx.filter = 'none';
+
+        canvas.toBlob(function(blob) {
+            // Create a File from the blob and set it on the hidden input
+            var dt = new DataTransfer();
+            dt.items.add(new File([blob], 'composed.jpg', { type: 'image/jpeg' }));
+            composedInput.files = dt.files;
+            maxColorsHidden.value = maxColorsSlider.value;
+            positionForm.submit();
+        }, 'image/jpeg', 0.95);
+    });
+}
+
+
+/* =============================================================================
+   Smart Image — Adjust Step
+   ============================================================================= */
+
+/**
+ * Initialize the smart image adjust page.
+ * @param {Object} config - { gridWidth, gridHeight, maxPaletteColors, previewUrl }
+ */
+function initSmartAdjustStep(config) {
+    var previewUrl = config.previewUrl;
+
+    var maxColorsValue = config.maxColors || 32;
+
+    // Controls — sliders
+    var smoothing = document.getElementById('sa-smoothing');
+    var smoothingLabel = document.getElementById('sa-smoothing-label');
+
+    // Controls — selects & checkboxes
+    var sharpness = document.getElementById('sa-sharpness');
+    var edgeDetail = document.getElementById('sa-edge-detail');
+    var dithering = document.getElementById('sa-dithering');
+    var despeckle = document.getElementById('sa-despeckle');
+    var backstitch = document.getElementById('sa-backstitch');
+    var removeBg = document.getElementById('sa-remove-bg');
+
+    // Preview elements
+    var loading = document.getElementById('sa-loading');
+    var result = document.getElementById('sa-result');
+    var previewImg = document.getElementById('sa-preview-img');
+    var colorCount = document.getElementById('sa-color-count');
+    var cellCount = document.getElementById('sa-cell-count');
+    var paletteSection = document.getElementById('sa-palette-section');
+    var paletteGrid = document.getElementById('sa-palette-grid');
+
+    // Form + hidden inputs
+    var adjustForm = document.getElementById('adjust-form');
+    var createBtn = document.getElementById('sa-create-btn');
+
+    // Debounce timer for auto-refresh
+    var debounceTimer = null;
+    var DEBOUNCE_MS = 600;
+    var fetchAbort = null;
+
+    function scheduleFetch() {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(function() {
+            fetchPreview();
+        }, DEBOUNCE_MS);
+    }
+
+    // Slider label updates + auto-refresh on change
+    smoothing.addEventListener('input', function() {
+        smoothingLabel.textContent = smoothing.value;
+        scheduleFetch();
+    });
+
+    // Auto-refresh on select/checkbox changes (immediate, no debounce needed)
+    sharpness.addEventListener('change', function() { fetchPreview(); });
+    edgeDetail.addEventListener('change', function() { fetchPreview(); });
+    dithering.addEventListener('change', function() { fetchPreview(); });
+    despeckle.addEventListener('change', function() { fetchPreview(); });
+    backstitch.addEventListener('change', function() { fetchPreview(); });
+    removeBg.addEventListener('change', function() { fetchPreview(); });
+
+    // Fetch preview
+    function fetchPreview() {
+        // Cancel any pending debounce
+        if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
+
+        // Abort previous in-flight request
+        if (fetchAbort) fetchAbort.abort();
+        fetchAbort = new AbortController();
+
+        loading.style.display = '';
+        result.style.display = 'none';
+
+        var fd = new FormData();
+        fd.append('max_colors', maxColorsValue);
+        fd.append('sharpness', sharpness.value);
+        fd.append('edge_detail', edgeDetail.value);
+        fd.append('despeckle', despeckle.value);
+        fd.append('backstitch', backstitch.checked ? 'true' : 'false');
+        fd.append('dithering', dithering.value);
+        fd.append('remove_bg', removeBg.checked ? 'true' : 'false');
+        fd.append('smoothing', smoothing.value);
+
+        fetch(previewUrl, {
+            method: 'POST',
+            body: fd,
+            signal: fetchAbort.signal
+        })
+        .then(function(resp) { return resp.json(); })
+        .then(function(data) {
+            loading.style.display = 'none';
+            result.style.display = '';
+
+            if (data.error) {
+                previewImg.style.display = 'none';
+                colorCount.textContent = '--';
+                cellCount.textContent = '--';
+                paletteSection.style.display = 'none';
+                alert(data.error);
                 return;
             }
 
-            createBtn.disabled = true;
-            createBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Creating...';
+            previewImg.src = data.preview;
+            previewImg.style.display = '';
+            colorCount.textContent = data.colorCount;
+            cellCount.textContent = data.cellCount;
 
-            var mc = Math.max(2, Math.min(swConfirmedMaxColors, maxPaletteColors));
+            // Render palette swatches
+            if (data.palette && data.palette.length > 0) {
+                paletteSection.style.display = '';
+                paletteGrid.innerHTML = '';
+                data.palette.forEach(function(c) {
+                    var swatch = document.createElement('div');
+                    swatch.className = 'smart-palette-swatch';
+                    swatch.style.backgroundColor = c.rgbHex;
+                    swatch.title = c.vendor.toUpperCase() + ' ' + c.code + ' — ' + c.name;
+                    paletteGrid.appendChild(swatch);
+                });
+            } else {
+                paletteSection.style.display = 'none';
+            }
+        })
+        .catch(function(err) {
+            if (err.name === 'AbortError') return; // superseded by newer request
+            loading.style.display = 'none';
+            result.style.display = '';
+            alert('An error occurred while generating the preview.');
+        });
+    }
 
-            var fd = new FormData(createForm);
-            fd.set('creation_mode', 'smart_image');
-            fd.set('max_colors', mc);
-            fd.set('edge_detail', swConfirmedEdgeDetail);
-            fd.set('despeckle', swConfirmedDespeckle);
-            fd.set('backstitch', swConfirmedBackstitch ? 'true' : 'false');
-            fd.set('dithering', swConfirmedDithering);
-            fd.append('image', swComposedBlob, 'composed.png');
+    // Auto-fetch initial preview on page load
+    fetchPreview();
 
-            fetch(createForm.action || window.location.href, {
-                method: 'POST',
-                body: fd,
-                redirect: 'follow'
-            }).then(function(resp) {
-                window.location.href = resp.url;
-            }).catch(function() {
-                createBtn.disabled = false;
-                createBtn.innerHTML = '<i class="bi bi-check-lg"></i> Create Project';
-                alert('An error occurred. Please try again.');
-            });
-        }
-        // else: empty mode — let normal form submit proceed
+    // Sync hidden inputs on form submit
+    adjustForm.addEventListener('submit', function() {
+        document.getElementById('sa-max-colors-hidden').value = maxColorsValue;
+        document.getElementById('sa-sharpness-hidden').value = sharpness.value;
+        document.getElementById('sa-edge-detail-hidden').value = edgeDetail.value;
+        document.getElementById('sa-despeckle-hidden').value = despeckle.value;
+        document.getElementById('sa-backstitch-hidden').value = backstitch.checked ? 'true' : 'false';
+        document.getElementById('sa-dithering-hidden').value = dithering.value;
+        document.getElementById('sa-remove-bg-hidden').value = removeBg.checked ? 'true' : 'false';
+        document.getElementById('sa-smoothing-hidden').value = smoothing.value;
+
+        createBtn.disabled = true;
+        createBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Creating...';
     });
 }

@@ -8,6 +8,10 @@
     padding: 2rem 1rem;
 }
 
+.wizard-container--wide {
+    max-width: 1100px;
+}
+
 .wizard-card {
     background: var(--bs-secondary-bg);
     border-radius: var(--bs-border-radius-lg);

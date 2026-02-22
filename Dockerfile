@@ -20,6 +20,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy your app code
 COPY . .
 
+# Create uploads directory for user-uploaded images (reference images, wizard temp files)
+RUN mkdir -p /app/uploads
+
 # Use Gunicorn to run the app
-# 'app:app' means look for a file named app.py with a variable named app
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "stitch:create_app('production')"]

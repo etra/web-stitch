@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}Smart Image - Adjust - Web Stitch{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/wizard.css') }}">
+<link rel="stylesheet" href="{{ url_for('projects.static', filename='projects/projects.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="wizard-container wizard-container--wide">
+    <div class="wizard-card">
+        <h1 class="text-center mb-4">Adjust & Preview</h1>
+
+        {% set current_step = 4 %}
+        {% set steps = ['Name', 'Size', 'Vendor', 'Create'] %}
+        {% include 'components/wizard_steps.html' %}
+
+        {% set smart_step = 3 %}
+        {% include 'projects/new/smart/_smart_steps.html' %}
+
+        <div class="smart-adjust-layout">
+            <!-- Left: Preview -->
+            <div class="smart-adjust-preview">
+                <div id="sa-loading" class="text-center py-5">
+                    <div class="spinner-border"></div>
+                    <p class="mt-2 text-muted">Generating preview...</p>
+                </div>
+                <div id="sa-result" style="display: none;">
+                    <div class="text-center mb-3">
+                        <img id="sa-preview-img" class="img-fluid border rounded"
+                             style="max-height: 300px; image-rendering: pixelated;" alt="Preview">
+                    </div>
+                    <div class="d-flex justify-content-center gap-3 mb-3 small text-muted">
+                        <span><strong id="sa-color-count">--</strong> colors</span>
+                        <span><strong id="sa-cell-count">--</strong> stitches</span>
+                    </div>
+
+                    <!-- Matched palette swatches -->
+                    <div id="sa-palette-section" style="display: none;">
+                        <h6 class="mb-2">Matched Colors</h6>
+                        <div class="smart-palette-grid" id="sa-palette-grid"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Controls -->
+            <div class="smart-adjust-controls">
+                <!-- Smoothing -->
+                <div class="mb-3">
+                    <label class="form-label small mb-0">
+                        Smoothing: <span id="sa-smoothing-label" class="fw-semibold">50</span>
+                    </label>
+                    <input type="range" class="form-range" id="sa-smoothing"
+                           min="0" max="100" value="50">
+                </div>
+
+                <hr>
+
+                <!-- Conversion Settings -->
+                <h6 class="mb-2">Conversion</h6>
+
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label small mb-0">Sharpness</label>
+                        <select class="form-select form-select-sm" id="sa-sharpness">
+                            <option value="off">Off</option>
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small mb-0">Edge Detail</label>
+                        <select class="form-select form-select-sm" id="sa-edge-detail">
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small mb-0">Dithering</label>
+                        <select class="form-select form-select-sm" id="sa-dithering">
+                            <option value="off">Off</option>
+                            <option value="atkinson" selected>Atkinson</option>
+                        </select>
+                    </div>
+                </div>
+
+                <hr>
+
+                <!-- Post-Processing -->
+                <h6 class="mb-2">Post-Processing</h6>
+
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label small mb-0">Despeckling</label>
+                        <select class="form-select form-select-sm" id="sa-despeckle">
+                            <option value="off" selected>Off</option>
+                            <option value="light">Light</option>
+                            <option value="heavy">Heavy</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small mb-0">Backstitch</label>
+                        <div class="form-check form-switch mt-1">
+                            <input class="form-check-input" type="checkbox" id="sa-backstitch">
+                            <label class="form-check-label small" for="sa-backstitch">Enabled</label>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small mb-0">Remove BG</label>
+                        <div class="form-check form-switch mt-1">
+                            <input class="form-check-input" type="checkbox" id="sa-remove-bg">
+                            <label class="form-check-label small" for="sa-remove-bg">Enabled</label>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <form method="POST" id="adjust-form" class="wizard-form">
+            <!-- Hidden inputs populated by JS on submit -->
+            <input type="hidden" name="max_colors" id="sa-max-colors-hidden" value="{{ wizard_max_colors }}">
+            <input type="hidden" name="sharpness" id="sa-sharpness-hidden" value="medium">
+            <input type="hidden" name="edge_detail" id="sa-edge-detail-hidden" value="medium">
+            <input type="hidden" name="despeckle" id="sa-despeckle-hidden" value="off">
+            <input type="hidden" name="backstitch" id="sa-backstitch-hidden" value="false">
+            <input type="hidden" name="dithering" id="sa-dithering-hidden" value="atkinson">
+            <input type="hidden" name="remove_bg" id="sa-remove-bg-hidden" value="false">
+            <input type="hidden" name="smoothing" id="sa-smoothing-hidden" value="50">
+
+            <div class="wizard-nav">
+                <div class="wizard-nav-left">
+                    <a href="{{ url_for('projects.smart_position') }}"
+                       class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Back
+                    </a>
+                    <a href="{{ url_for('projects.list') }}"
+                       class="btn btn-outline-secondary"
+                       data-wizard-cancel>
+                        <i class="bi bi-x-lg"></i> Cancel
+                    </a>
+                </div>
+
+                <div class="wizard-nav-right">
+                    <button type="submit" class="btn btn-primary btn-lg" id="sa-create-btn">
+                        <i class="bi bi-check-lg"></i> Create Project
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/wizard.js') }}"></script>
+<script src="{{ url_for('projects.static', filename='projects/projects.js') }}"></script>
+<script>
+    initSmartAdjustStep({
+        gridWidth: {{ wizard_data.width }},
+        gridHeight: {{ wizard_data.height }},
+        maxColors: {{ wizard_max_colors }},
+        previewUrl: '{{ url_for("projects.smart_preview") }}'
+    });
+</script>
+{% endblock %}

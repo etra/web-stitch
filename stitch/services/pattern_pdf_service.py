@@ -725,14 +725,6 @@ class PatternPDFService:
         pattern_img = Image(img_buffer, width=final_width, height=final_height)
         elements.append(pattern_img)
 
-        # Overlap note
-        if page_def['total_rows'] > 1 or page_def['total_cols'] > 1:
-            elements.append(Spacer(1, 3 * mm))
-            elements.append(Paragraph(
-                'This page overlaps with adjacent pages by 3 stitches for easier alignment.',
-                styles['SmallNote']
-            ))
-
         return elements
 
     @staticmethod

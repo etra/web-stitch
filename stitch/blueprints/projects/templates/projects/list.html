@@ -46,7 +46,7 @@
                         <td>
                             <a href="{{ url_for('projects.editor', project_id=project.id) }}">
                                 <div class="project-thumb">
-                                    <img src="{{ url_for('projects.thumbnail', project_id=project.id) }}"
+                                    <img src="{{ url_for('projects.cached_thumbnail', project_id=project.id, state_hash=project.state_hash, image_type='fill') }}"
                                          alt="{{ project.name }}">
                                 </div>
                             </a>

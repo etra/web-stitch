@@ -44,8 +44,8 @@
                     </div>
                 {% else %}
                     <div class="d-grid gap-2 d-sm-flex">
-                        <a href="{{ url_for('projects.list') }}" class="btn btn-primary btn-lg px-4">
-                            My Projects
+                        <a href="{{ url_for('projects.new_name') }}" class="btn btn-primary btn-lg px-4">
+                            Create Project
                         </a>
                     </div>
                 {% endif %}
@@ -102,5 +102,4 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/vote.js') }}"></script>
-<script src="{{ url_for('static', filename='js/pattern-carousel.js') }}"></script>
 {% endblock %}

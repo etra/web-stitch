@@ -399,6 +399,8 @@ class Project(db.Model):
     show_grid_numbers = db.Column(db.Boolean, default=False)
     default_stitch_type = db.Column(db.String(30), default='full')
 
+    state_hash = db.Column(db.String(10), nullable=False, server_default='0000000000')
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -446,6 +448,7 @@ class Project(db.Model):
             'major_grid_interval': self.major_grid_interval,
             'show_grid_numbers': self.show_grid_numbers,
             'default_stitch_type': self.default_stitch_type,
+            'state_hash': self.state_hash,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
