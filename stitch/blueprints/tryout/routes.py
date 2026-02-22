@@ -23,6 +23,7 @@ from flask import (
 )
 
 from stitch.blueprints.tryout import bp
+from stitch.services.seo_service import SEOService
 from stitch.services.wizard_service import WizardService
 
 
@@ -36,6 +37,24 @@ logger = logging.getLogger(__name__)
 @bp.route('/', methods=['GET', 'POST'])
 def index():
     """Size + image upload page."""
+    seo = SEOService.get_page_metadata(
+        page_title='Free Image to Cross-Stitch Pattern Converter',
+        description=(
+            'Convert any image into a printable cross-stitch pattern PDF '
+            'for free — no sign-up required. Upload a photo, adjust colors '
+            'and size, and download a ready-to-stitch PDF with DMC thread '
+            'codes, symbols, and a full color legend.'
+        ),
+        canonical_path='/tryout',
+        keywords=(
+            'image to cross stitch, photo to cross stitch pattern, '
+            'cross stitch pattern generator, free cross stitch PDF, '
+            'convert image to cross stitch, cross stitch maker, '
+            'cross stitch pattern from photo, DMC pattern generator, '
+            'free needlework pattern, cross stitch converter online'
+        ),
+    )
+
     if request.method == 'POST':
         from stitch.services.image_service import ImageService
 
@@ -45,17 +64,17 @@ def index():
 
         if not width or not height or width < 10 or width > 999 or height < 10 or height > 999:
             flash('Width and height must be between 10 and 999.', 'danger')
-            return render_template('tryout/index.html')
+            return render_template('tryout/index.html', seo=seo)
 
         # Validate image
         image_file = request.files.get('image')
         if not image_file or not image_file.filename:
             flash('Please upload an image.', 'danger')
-            return render_template('tryout/index.html')
+            return render_template('tryout/index.html', seo=seo)
 
         if not ImageService.allowed_file(image_file.filename):
             flash('File type not allowed. Use JPG, PNG, or GIF.', 'danger')
-            return render_template('tryout/index.html')
+            return render_template('tryout/index.html', seo=seo)
 
         # Init wizard session and store dimensions
         WizardService.init_wizard(wizard_type='tryout')
@@ -69,7 +88,7 @@ def index():
 
         return redirect(url_for('tryout.image'))
 
-    return render_template('tryout/index.html')
+    return render_template('tryout/index.html', seo=seo)
 
 
 # ---------------------------------------------------------------------------

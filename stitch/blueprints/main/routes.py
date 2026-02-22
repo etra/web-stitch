@@ -146,6 +146,7 @@ def sitemap_pages():
         ('/guide/editor',         'monthly', '0.6'),
         ('/guide/layers',         'monthly', '0.6'),
         ('/guide/print',          'monthly', '0.6'),
+        ('/tryout',               'weekly',  '0.9'),
         ('/privacy',              'yearly',  '0.3'),
         ('/imprint',              'yearly',  '0.3'),
     ]

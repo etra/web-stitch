@@ -1,6 +1,33 @@
 {% extends "base.html" %}
 
-{% block title %}Try It — Free Cross-Stitch PDF — OurStitch{% endblock %}
+{% block title %}{{ seo.title }}{% endblock %}
+
+{% block meta_description %}{{ seo.description }}{% endblock %}
+
+{% block meta_keywords %}
+<meta name="keywords" content="{{ seo.keywords }}">
+{% endblock %}
+
+{% block canonical %}
+<link rel="canonical" href="{{ seo.canonical_url }}">
+{% endblock %}
+
+{% block og_title %}{{ seo.title }}{% endblock %}
+{% block og_description %}{{ seo.description }}{% endblock %}
+{% block og_url %}{{ seo.canonical_url }}{% endblock %}
+{% block og_image %}
+<meta property="og:image" content="https://ourstitch.com{{ url_for('static', filename='img/og-tryout.png') }}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="OurStitch — Convert any image into a cross-stitch pattern PDF for free">
+{% endblock %}
+
+{% block twitter_title %}{{ seo.title }}{% endblock %}
+{% block twitter_description %}{{ seo.description }}{% endblock %}
+{% block twitter_image %}
+<meta name="twitter:image" content="https://ourstitch.com{{ url_for('static', filename='img/og-tryout.png') }}">
+<meta name="twitter:image:alt" content="OurStitch — Convert any image into a cross-stitch pattern PDF for free">
+{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/wizard.css') }}">
@@ -10,8 +37,8 @@
 {% block content %}
 <div class="wizard-container">
     <div class="wizard-card">
-        <h1 class="text-center mb-2">Try It Free</h1>
-        <p class="text-muted text-center mb-4">Upload an image and get a cross-stitch PDF — no sign-up required.</p>
+        <h1 class="text-center mb-2">Convert Image to Cross-Stitch Pattern</h1>
+        <p class="text-muted text-center mb-4">Upload any photo and get a print-ready cross-stitch PDF with DMC colors — free, no sign-up.</p>
 
         {% set tryout_step = 1 %}
         {% include 'tryout/_tryout_steps.html' %}
@@ -128,6 +155,65 @@
         </form>
     </div>
 </div>
+
+{# JSON-LD Structured Data — WebApplication + HowTo #}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "OurStitch Image to Cross-Stitch Converter",
+    "url": "https://ourstitch.com/tryout",
+    "description": "{{ seo.description }}",
+    "applicationCategory": "DesignApplication",
+    "operatingSystem": "Any",
+    "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+    },
+    "featureList": [
+        "Convert any image to a cross-stitch pattern",
+        "DMC thread color matching",
+        "Adjustable pattern size and color count",
+        "Image brightness, contrast, and saturation controls",
+        "Print-ready PDF with symbols and color legend",
+        "No sign-up required"
+    ]
+}
+</script>
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    "name": "How to Convert an Image to a Cross-Stitch Pattern",
+    "description": "Turn any photo into a printable cross-stitch pattern PDF using OurStitch's free online converter.",
+    "step": [
+        {
+            "@type": "HowToStep",
+            "position": 1,
+            "name": "Upload your image",
+            "text": "Choose your desired pattern size in stitches, then upload a JPG, PNG, or GIF image."
+        },
+        {
+            "@type": "HowToStep",
+            "position": 2,
+            "name": "Position and adjust",
+            "text": "Drag and scale the image on the grid. Adjust brightness, contrast, saturation, and the maximum number of colors."
+        },
+        {
+            "@type": "HowToStep",
+            "position": 3,
+            "name": "Download your PDF",
+            "text": "Download a print-ready PDF with a pattern overview, DMC color legend, and paginated symbol charts."
+        }
+    ],
+    "tool": {
+        "@type": "HowToTool",
+        "name": "OurStitch Image to Cross-Stitch Converter"
+    },
+    "totalTime": "PT2M"
+}
+</script>
 {% endblock %}
 
 {% block extra_js %}
