@@ -79,29 +79,10 @@
             </div>
         </div>
 
-        <div class="image-adjust-controls mt-3">
-            <h6 class="mb-2">PDF Render Mode</h6>
-            <div class="form-check mb-1">
-                <input class="form-check-input" type="radio" name="render_mode_radio"
-                       id="rm-symbol-color" value="symbol_color" checked>
-                <label class="form-check-label" for="rm-symbol-color">
-                    Symbols with color background
-                </label>
-            </div>
-            <div class="form-check">
-                <input class="form-check-input" type="radio" name="render_mode_radio"
-                       id="rm-bw-symbols" value="bw_symbols">
-                <label class="form-check-label" for="rm-bw-symbols">
-                    Black &amp; white symbols
-                </label>
-            </div>
-        </div>
-
         {# Hidden form submitted by JS — carries composed image + settings #}
         <form method="POST" enctype="multipart/form-data" id="position-form" style="display: none;">
             <input type="file" name="composed_image" id="composed-image-input">
             <input type="hidden" name="max_colors" id="pos-max-colors-hidden" value="32">
-            <input type="hidden" name="render_mode" id="render-mode-hidden" value="symbol_color">
         </form>
 
         <div class="wizard-nav mt-4">
@@ -133,21 +114,5 @@
         tempImageUrl: '{{ url_for("tryout.temp_image") }}'
     });
 
-    // Sync render_mode radio to hidden form field before submit
-    (function() {
-        var form = document.getElementById('position-form');
-        var hiddenField = document.getElementById('render-mode-hidden');
-
-        document.querySelectorAll('input[name="render_mode_radio"]').forEach(function(radio) {
-            radio.addEventListener('change', function() {
-                hiddenField.value = this.value;
-            });
-        });
-
-        form.addEventListener('submit', function() {
-            var checked = document.querySelector('input[name="render_mode_radio"]:checked');
-            if (checked) hiddenField.value = checked.value;
-        });
-    })();
 </script>
 {% endblock %}

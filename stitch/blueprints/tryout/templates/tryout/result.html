@@ -17,9 +17,13 @@
         {% include 'tryout/_tryout_steps.html' %}
 
         <div class="d-grid gap-3 mt-4 mb-4" style="max-width: 360px; margin: 0 auto;">
-            <a href="{{ url_for('tryout.pdf') }}" target="_blank"
+            <a href="{{ url_for('tryout.pdf', render_mode='symbol_color') }}" target="_blank"
                class="btn btn-primary btn-lg">
                 <i class="bi bi-file-earmark-pdf me-1"></i> Download PDF
+            </a>
+            <a href="{{ url_for('tryout.pdf', render_mode='bw_symbols') }}" target="_blank"
+               class="btn btn-outline-primary btn-lg">
+                <i class="bi bi-file-earmark-pdf me-1"></i> Download Black &amp; White
             </a>
         </div>
 

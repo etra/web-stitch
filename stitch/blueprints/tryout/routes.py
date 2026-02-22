@@ -103,13 +103,10 @@ def image():
         max_colors = request.form.get('max_colors', type=int) or 32
         max_colors = max(2, min(max_colors, max_palette_colors))
 
-        render_mode_value = request.form.get('render_mode', 'symbol_color')
-
         # Save composed image and settings to session
         WizardService.save_smart_composed_image(composed_file)
         WizardService.update_wizard_data({
             'max_colors': max_colors,
-            'render_mode': render_mode_value,
         })
 
         return redirect(url_for('tryout.result'))
@@ -159,7 +156,7 @@ def pdf():
 
     wizard_data = WizardService.get_wizard_data()
     max_colors = wizard_data.get('max_colors', 32)
-    render_mode_value = wizard_data.get('render_mode', 'symbol_color')
+    render_mode_value = request.args.get('render_mode', 'symbol_color')
 
     try:
         pdf_bytes = _generate_tryout_pdf(
