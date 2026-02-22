@@ -26,7 +26,16 @@
                 <i class="bi bi-file-earmark-pdf me-1"></i> Download Black &amp; White
             </a>
         </div>
-
+        <!-- Tryout -->
+        <ins class="adsbygoogle"
+             style="display:block"
+             data-ad-client="ca-pub-8640481598708165"
+             data-ad-slot="8326481766"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+        <script>
+            (adsbygoogle = window.adsbygoogle || []).push({});
+        </script>
         <div class="mt-4">
             <a href="{{ url_for('tryout.index') }}" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> Start Over
@@ -34,4 +43,29 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    function trackDownload(mode) {
+        if (typeof gtag === 'function') {
+            gtag('event', 'tryout_download_pdf', {
+                event_category: 'tryout',
+                render_mode: mode,
+                pattern_width: {{ wizard_data.width }},
+                pattern_height: {{ wizard_data.height }},
+                max_colors: {{ wizard_data.get('max_colors', 32) }}
+            });
+        }
+    }
+
+    document.querySelectorAll('a[href*="/tryout/pdf"]').forEach(function(link) {
+        link.addEventListener('click', function() {
+            var mode = this.href.indexOf('bw_symbols') !== -1 ? 'bw_symbols' : 'symbol_color';
+            trackDownload(mode);
+        });
+    });
+})();
+</script>
 {% endblock %}

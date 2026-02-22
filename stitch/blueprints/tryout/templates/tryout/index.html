@@ -222,5 +222,18 @@
 <script>
     initSizeStep();
     initSmartUploadStep();
+
+    document.getElementById('tryout-form').addEventListener('submit', function() {
+        if (typeof gtag === 'function') {
+            var w = document.getElementById('width').value;
+            var h = document.getElementById('height').value;
+            gtag('event', 'tryout_upload', {
+                event_category: 'tryout',
+                event_label: w + 'x' + h,
+                pattern_width: parseInt(w),
+                pattern_height: parseInt(h)
+            });
+        }
+    });
 </script>
 {% endblock %}

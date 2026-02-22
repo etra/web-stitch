@@ -114,5 +114,14 @@
         tempImageUrl: '{{ url_for("tryout.temp_image") }}'
     });
 
+    document.getElementById('position-form').addEventListener('submit', function() {
+        if (typeof gtag === 'function') {
+            var mc = document.getElementById('pos-max-colors').value;
+            gtag('event', 'tryout_position', {
+                event_category: 'tryout',
+                max_colors: parseInt(mc)
+            });
+        }
+    });
 </script>
 {% endblock %}

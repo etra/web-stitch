@@ -21,7 +21,7 @@ def _redirect_after_login():
     next_url = session.pop('next', None)
     if next_url:
         return redirect(next_url)
-    return _redirect_after_login()
+    return redirect(url_for('projects.list'))
 
 
 def login_required(f):
