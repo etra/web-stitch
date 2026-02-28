@@ -245,7 +245,7 @@ def _send_image(image):
     )
 
 
-THUMBNAIL_TYPES = {'small', 'large', 'fill', 'cross', 'symbol', 'symbolbw'}
+THUMBNAIL_TYPES = {'small', 'large', 'fill', 'cross', 'symbol', 'symbolbw', 'og'}
 
 
 @bp.route('/<project_id>/thumbnail-<state_hash>-<image_type>.png')
@@ -297,6 +297,19 @@ def cached_thumbnail(project_id, state_hash, image_type):
                 cell_size=4, solid_fill=True
             )
             response = _send_image(_render_thumbnail_canvas(pattern))
+        elif image_type == 'og':
+            # 1200x630 OG image for social sharing (Facebook, Twitter)
+            og_w, og_h = 1200, 630
+            # Use a cell size that fills most of the canvas
+            cell_size = max(1, min(
+                (og_w - 40) // project.width,
+                (og_h - 40) // project.height
+            ))
+            pattern = PatternRenderer.render_colored_pattern(
+                state, project.width, project.height,
+                cell_size=cell_size, solid_fill=True
+            )
+            response = _send_image(_render_thumbnail_canvas(pattern, og_w, og_h))
         elif image_type == 'cross':
             pattern = PatternRenderer.render_colored_pattern(
                 state, project.width, project.height,

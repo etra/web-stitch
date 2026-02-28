@@ -8,15 +8,15 @@
 
 {% block og_title %}{{ project.name }} — Free Cross-Stitch Pattern{% endblock %}
 {% block og_description %}{{ project.width }}×{{ project.height }} stitches · {{ legend_by_color | length }} colors · {{ total_stitches }} stitches. Free printable PDF with symbol chart and color legend.{% endblock %}
-{% block og_image %}<meta property="og:image" content="https://ourstitch.com/projects/{{ project.id }}/thumbnail-{{ project.state_hash }}-fill.png">
-<meta property="og:image:width" content="450">
-<meta property="og:image:height" content="250">
+{% block og_image %}<meta property="og:image" content="https://ourstitch.com/projects/{{ project.id }}/thumbnail-{{ project.state_hash }}-og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Cross-stitch pattern preview: {{ project.name }}">{% endblock %}
 {% block og_url %}https://ourstitch.com/print/{{ project.id }}{% endblock %}
 
 {% block twitter_title %}{{ project.name }} — Free Cross-Stitch Pattern{% endblock %}
 {% block twitter_description %}{{ project.width }}×{{ project.height }} stitches · {{ legend_by_color | length }} colors. Free printable PDF.{% endblock %}
-{% block twitter_image %}<meta name="twitter:image" content="https://ourstitch.com/projects/{{ project.id }}/thumbnail-{{ project.state_hash }}-fill.png">
+{% block twitter_image %}<meta name="twitter:image" content="https://ourstitch.com/projects/{{ project.id }}/thumbnail-{{ project.state_hash }}-og.png">
 <meta name="twitter:image:alt" content="Cross-stitch pattern preview: {{ project.name }}">{% endblock %}
 
 {% block extra_css %}
