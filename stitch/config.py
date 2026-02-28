@@ -70,6 +70,10 @@ class Config:
     # Magic link token expiration (seconds)
     MAGIC_LINK_EXPIRATION = 900  # 15 minutes
 
+    # Diffusion microservice
+    DIFFUSION_SERVICE_URL = os.getenv('DIFFUSION_SERVICE_URL', 'https://service-gpu.ourstitch.com')
+    DIFFUSION_TIMEOUT = int(os.getenv('DIFFUSION_TIMEOUT', '600'))
+
 
 class DevelopmentConfig(Config):
     """Development configuration"""

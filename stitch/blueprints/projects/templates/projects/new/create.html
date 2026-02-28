@@ -50,14 +50,34 @@
                 <div class="creation-mode-desc">Upload an image and convert it to cross-stitch stitches</div>
             </a>
 
+            {% if diffusion_available and user_logged_in %}
             <a href="{{ url_for('projects.smart_upload') }}" class="creation-mode-card" style="text-decoration: none; color: inherit;">
                 <div class="creation-mode-icon">
                     <i class="bi bi-stars"></i>
                 </div>
                 <div class="creation-mode-name">Smart Image</div>
-                <div class="creation-mode-desc">AI-enhanced conversion — best color matching, edge detail, and sewability</div>
-                <span class="badge bg-info mt-2">Beta</span>
+                <div class="creation-mode-desc">AI-enhanced conversion — transforms your image into pixel art then converts to stitches</div>
+                <span class="badge bg-warning text-dark mt-2">Beta</span>
             </a>
+            {% elif not diffusion_available %}
+            <div class="creation-mode-card disabled" style="opacity: 0.5; pointer-events: none;">
+                <div class="creation-mode-icon">
+                    <i class="bi bi-stars"></i>
+                </div>
+                <div class="creation-mode-name">Smart Image</div>
+                <div class="creation-mode-desc">AI service is currently offline</div>
+                <span class="badge bg-secondary mt-2">Offline</span>
+            </div>
+            {% else %}
+            <div class="creation-mode-card disabled" style="opacity: 0.5; pointer-events: none;">
+                <div class="creation-mode-icon">
+                    <i class="bi bi-stars"></i>
+                </div>
+                <div class="creation-mode-name">Smart Image</div>
+                <div class="creation-mode-desc">AI-enhanced conversion — available for registered users</div>
+                <span class="badge bg-secondary mt-2">Sign in required</span>
+            </div>
+            {% endif %}
         </div>
 
         <form method="POST"

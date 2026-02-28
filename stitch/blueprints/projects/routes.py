@@ -4,6 +4,8 @@ import io
 import logging
 import types
 
+logger = logging.getLogger(__name__)
+
 from pathlib import Path
 
 from flask import current_app, jsonify, render_template, request, redirect, url_for, flash, send_file, session
@@ -514,7 +516,7 @@ def clone(project_id):
 def smart_preview():
     """Generate a preview of smart image conversion without creating a project.
 
-    Reads image from temp file stored by smart_position (no upload needed).
+    Reads image from composed file stored in wizard temp directory.
     Also accepts an 'image' file upload for backward compatibility.
     Returns JSON with base64 preview PNG, color count, cell count, and palette.
     """
@@ -788,13 +790,24 @@ def new_create():
         except Exception as e:
             logging.exception('Error creating project')
             flash(f'Error creating project: {str(e)}', 'danger')
+            from stitch.services.diffusion_service import DiffusionService
+            diffusion_available = DiffusionService.get_status() != 'offline'
+            user_logged_in = bool(session.get('user_id'))
             return render_template('projects/new/create.html',
                                    wizard_data=wizard_data,
-                                   max_palette_colors=max_palette_colors)
+                                   max_palette_colors=max_palette_colors,
+                                   diffusion_available=diffusion_available,
+                                   user_logged_in=user_logged_in)
+
+    from stitch.services.diffusion_service import DiffusionService
+    diffusion_available = DiffusionService.get_status() != 'offline'
+    user_logged_in = bool(session.get('user_id'))
 
     return render_template('projects/new/create.html',
                            wizard_data=wizard_data,
-                           max_palette_colors=max_palette_colors)
+                           max_palette_colors=max_palette_colors,
+                           diffusion_available=diffusion_available,
+                           user_logged_in=user_logged_in)
 
 
 # =============================================================================
@@ -901,13 +914,13 @@ def image_temp_image():
 
 
 # =============================================================================
-# WIZARD ROUTES - Smart Image Sub-Flow (3 pages)
+# WIZARD ROUTES - Smart Image Sub-Flow (4 pages)
 # =============================================================================
 
 @bp.route('/new/smart/upload', methods=['GET', 'POST'])
 @login_required
 def smart_upload():
-    """Smart Image step 1: Upload image file."""
+    """Smart Image step 1: Upload and position image on canvas."""
     if not WizardService.validate_wizard_state():
         flash('Wizard session expired. Please start again.', 'warning')
         return redirect(url_for('projects.new_name'))
@@ -915,30 +928,28 @@ def smart_upload():
     wizard_data = WizardService.get_wizard_data()
 
     if request.method == 'POST':
-        from stitch.services.image_service import ImageService
-
-        image_file = request.files.get('image')
-        if not image_file or not image_file.filename:
-            flash('No image file provided.', 'danger')
+        # The form submits a composed (positioned/cropped) image from the canvas
+        composed_file = request.files.get('composed_image')
+        if not composed_file or not composed_file.filename:
+            flash('No image provided. Please upload and position an image.', 'danger')
             return render_template('projects/new/smart/upload.html',
                                    wizard_data=wizard_data)
 
-        if not ImageService.allowed_file(image_file.filename):
-            flash('File type not allowed. Use JPG, PNG, or GIF.', 'danger')
-            return render_template('projects/new/smart/upload.html',
-                                   wizard_data=wizard_data)
+        WizardService.save_smart_temp_image(composed_file)
 
-        WizardService.save_smart_temp_image(image_file)
-        return redirect(url_for('projects.smart_position'))
+        prompt = request.form.get('prompt', 'pixel art').strip() or 'pixel art'
+        WizardService.update_wizard_data({'diffusion_prompt': prompt})
+
+        return redirect(url_for('projects.smart_process'))
 
     return render_template('projects/new/smart/upload.html',
                            wizard_data=wizard_data)
 
 
-@bp.route('/new/smart/position', methods=['GET', 'POST'])
+@bp.route('/new/smart/process')
 @login_required
-def smart_position():
-    """Smart Image step 2: Position and scale image on grid."""
+def smart_process():
+    """Smart Image step 2: Show process page with blur animation."""
     if not WizardService.validate_wizard_state():
         flash('Wizard session expired. Please start again.', 'warning')
         return redirect(url_for('projects.new_name'))
@@ -949,28 +960,108 @@ def smart_position():
         return redirect(url_for('projects.smart_upload'))
 
     wizard_data = WizardService.get_wizard_data()
-    max_palette_colors = current_app.config.get('MAX_PALETTE_COLORS', 32)
 
-    if request.method == 'POST':
-        # Receive composed image from canvas
-        composed_file = request.files.get('composed_image')
-        if not composed_file or not composed_file.filename:
-            flash('Failed to compose image. Please try again.', 'danger')
-            return render_template('projects/new/smart/position.html',
-                                   wizard_data=wizard_data,
-                                   max_palette_colors=max_palette_colors)
+    # If result already exists (e.g. user navigated back), pass its URL
+    # so JS can skip generation and show the result immediately.
+    result_image_url = None
+    result_path = WizardService.get_diffusion_result_image_path()
+    if result_path:
+        result_image_url = url_for('projects.smart_result_image')
 
-        # Save max_colors chosen on position page
-        max_colors = request.form.get('max_colors', type=int) or 32
-        max_colors = max(2, min(max_colors, max_palette_colors))
-        WizardService.update_wizard_data({'max_colors': max_colors})
+    max_palette_colors = current_app.config.get('MAX_PALETTE_COLORS', 128)
 
-        WizardService.save_smart_composed_image(composed_file)
-        return redirect(url_for('projects.smart_adjust'))
-
-    return render_template('projects/new/smart/position.html',
+    return render_template('projects/new/smart/process.html',
                            wizard_data=wizard_data,
+                           result_image_url=result_image_url,
                            max_palette_colors=max_palette_colors)
+
+
+@bp.route('/new/smart/health')
+@login_required
+def smart_health():
+    """AJAX: Check diffusion service status."""
+    from stitch.services.diffusion_service import DiffusionService
+    health = DiffusionService.get_health()
+    logger.info('Smart health check: %s', health)
+    return jsonify(health)
+
+
+@bp.route('/new/smart/job-start', methods=['POST'])
+@login_required
+def smart_job_start():
+    """AJAX: Submit a diffusion generation job. Returns job_id."""
+    from PIL import Image
+    from stitch.services.diffusion_service import DiffusionService, DiffusionServiceError
+
+    if not WizardService.validate_wizard_state():
+        return jsonify({'error': 'Wizard session expired.'}), 400
+
+    temp_path = WizardService.get_smart_temp_image_path()
+    if not temp_path:
+        return jsonify({'error': 'No image uploaded.'}), 400
+
+    # Resize image to max 1024x1024 keeping aspect ratio before sending
+    # to diffusion service (large images are slow and unnecessary).
+    max_dim = 1024
+    img = Image.open(str(temp_path))
+    if img.width > max_dim or img.height > max_dim:
+        img.thumbnail((max_dim, max_dim), Image.LANCZOS)
+        resized_path = temp_path.parent / 'resized_for_diffusion.png'
+        img.save(str(resized_path), 'PNG')
+        diffusion_input_path = resized_path
+    else:
+        diffusion_input_path = temp_path
+
+    wizard_data = WizardService.get_wizard_data()
+    width = wizard_data.get('width', 70)
+    height = wizard_data.get('height', 70)
+    prompt = wizard_data.get('diffusion_prompt', 'pixel art')
+
+    target_width = width
+    target_height = height
+
+    try:
+        job_id = DiffusionService.submit_job(diffusion_input_path, target_width, target_height, prompt=prompt)
+        WizardService.update_wizard_data({'diffusion_job_id': job_id})
+        return jsonify({'job_id': job_id})
+
+    except DiffusionServiceError as e:
+        logging.exception('Diffusion service error')
+        return jsonify({'error': str(e)}), 502
+
+    except Exception as e:
+        logging.exception('Unexpected error starting diffusion job')
+        return jsonify({'error': f'Unexpected error: {str(e)}'}), 500
+
+
+@bp.route('/new/smart/job-status')
+@login_required
+def smart_job_status():
+    """AJAX: Poll job progress. On completion, saves result image."""
+    from stitch.services.diffusion_service import DiffusionService, DiffusionServiceError
+
+    wizard_data = WizardService.get_wizard_data()
+    job_id = wizard_data.get('diffusion_job_id')
+
+    if not job_id:
+        return jsonify({'error': 'No active job.'}), 400
+
+    try:
+        job = DiffusionService.get_job(job_id)
+    except DiffusionServiceError as e:
+        return jsonify({'error': str(e)}), 502
+
+    # When done, decode the base64 result and save for the adjust step
+    if job.get('status') == 'done' and job.get('result'):
+        data_url = job['result']
+        # Strip "data:image/png;base64," prefix
+        b64_data = data_url.split(',', 1)[1]
+        png_bytes = base64.b64decode(b64_data)
+        WizardService.save_diffusion_result_image(png_bytes)
+        # Also save as composed image so the adjust step can use it directly
+        WizardService.save_smart_composed_image_bytes(png_bytes)
+
+    return jsonify(job)
 
 
 @bp.route('/new/smart/adjust', methods=['GET', 'POST'])
@@ -983,12 +1074,19 @@ def smart_adjust():
 
     composed_path = WizardService.get_smart_composed_image_path()
     if not composed_path:
-        flash('No composed image. Please position your image first.', 'warning')
-        return redirect(url_for('projects.smart_position'))
+        flash('No generated image. Please run generation first.', 'warning')
+        return redirect(url_for('projects.smart_process'))
 
     wizard_data = WizardService.get_wizard_data()
-    max_palette_colors = current_app.config.get('MAX_PALETTE_COLORS', 32)
+    max_palette_colors = current_app.config.get('MAX_PALETTE_COLORS', 128)
     wizard_max_colors = wizard_data.get('max_colors', 32)
+
+    # Accept max_colors from query param (set by process page slider)
+    if request.method == 'GET':
+        qs_max_colors = request.args.get('max_colors', type=int)
+        if qs_max_colors:
+            wizard_max_colors = max(2, min(qs_max_colors, max_palette_colors))
+            WizardService.update_wizard_data({'max_colors': wizard_max_colors})
 
     if request.method == 'POST':
         user_id = session.get('user_id')
@@ -1048,7 +1146,7 @@ def smart_adjust():
 @bp.route('/new/smart/temp-image')
 @login_required
 def smart_temp_image():
-    """Serve the uploaded temp image for the smart positioner canvas."""
+    """Serve the original uploaded image (for blur animation)."""
     import mimetypes
 
     temp_path = WizardService.get_smart_temp_image_path()
@@ -1056,9 +1154,15 @@ def smart_temp_image():
         return '', 404
 
     mime = mimetypes.guess_type(str(temp_path))[0] or 'image/jpeg'
+    return send_file(str(temp_path), mimetype=mime, as_attachment=False)
 
-    return send_file(
-        str(temp_path),
-        mimetype=mime,
-        as_attachment=False,
-    )
+
+@bp.route('/new/smart/result-image')
+@login_required
+def smart_result_image():
+    """Serve the diffusion pixel art result (for position canvas)."""
+    result_path = WizardService.get_diffusion_result_image_path()
+    if not result_path:
+        return '', 404
+
+    return send_file(str(result_path), mimetype='image/png', as_attachment=False)

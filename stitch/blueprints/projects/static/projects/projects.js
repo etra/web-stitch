@@ -869,6 +869,301 @@ function initSmartUploadStep() {
 
 
 /* =============================================================================
+   Smart Image — Upload + Position Step (combined)
+   ============================================================================= */
+
+/**
+ * Combined upload + position step for smart image flow.
+ * User selects a file, positions/zooms it on the grid canvas, then submits
+ * the composed image directly.
+ * @param {Object} config - { gridWidth, gridHeight }
+ */
+function initSmartUploadPositionStep(config) {
+    var gridWidth = config.gridWidth;
+    var gridHeight = config.gridHeight;
+
+    // Drop zone elements
+    var dropZone = document.getElementById('smart-drop-zone');
+    var fileInput = document.getElementById('smart-file-input');
+    var dropPrompt = document.getElementById('smart-drop-prompt');
+    var dropSelected = document.getElementById('smart-drop-selected');
+    var dropFilename = document.getElementById('smart-drop-filename');
+    var changeFileBtn = document.getElementById('smart-change-file');
+
+    // Position section
+    var positionSection = document.getElementById('smart-position-section');
+    var posCanvas = document.getElementById('positioner-canvas');
+    var posScaleSlider = document.getElementById('positioner-scale');
+    var posScaleLabel = document.getElementById('positioner-scale-label');
+
+    // Form elements
+    var nextBtn = document.getElementById('upload-next-btn');
+    var uploadForm = document.getElementById('upload-form');
+    var composedInput = document.getElementById('composed-image-input');
+
+    // Image adjustment sliders
+    var brightnessSlider = document.getElementById('pos-brightness');
+    var brightnessLabel = document.getElementById('pos-brightness-label');
+    var contrastSlider = document.getElementById('pos-contrast');
+    var contrastLabel = document.getElementById('pos-contrast-label');
+    var saturationSlider = document.getElementById('pos-saturation');
+    var saturationLabel = document.getElementById('pos-saturation-label');
+
+    var MAX_CANVAS_DISPLAY = 380;
+    var imageEl = null;
+    var imgX = 0, imgY = 0, imgScale = 1.0;
+    var isDragging = false, dragStartX = 0, dragStartY = 0, dragStartImgX = 0, dragStartImgY = 0;
+
+    if (!dropZone || !fileInput || !posCanvas) return;
+
+    // --- Drop zone logic ---
+    dropZone.addEventListener('click', function(e) {
+        if (e.target === changeFileBtn || changeFileBtn.contains(e.target)) return;
+        fileInput.click();
+    });
+
+    changeFileBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        fileInput.click();
+    });
+
+    fileInput.addEventListener('change', function() {
+        if (fileInput.files[0]) onFileSelected(fileInput.files[0]);
+    });
+
+    dropZone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'copy';
+        dropZone.classList.add('active');
+    });
+    dropZone.addEventListener('dragenter', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.add('active');
+    });
+    dropZone.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.remove('active');
+    });
+    dropZone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.remove('active');
+        var file = e.dataTransfer.files[0];
+        if (file) {
+            var dt = new DataTransfer();
+            dt.items.add(file);
+            fileInput.files = dt.files;
+            onFileSelected(file);
+        }
+    });
+
+    function onFileSelected(file) {
+        dropPrompt.style.display = 'none';
+        dropSelected.style.display = 'flex';
+        dropFilename.textContent = file.name;
+        nextBtn.disabled = false;
+
+        // Show position section and load image locally
+        positionSection.style.display = '';
+        var url = URL.createObjectURL(file);
+        var img = new Image();
+        img.onload = function() {
+            imageEl = img;
+            var imgAspect = img.naturalWidth / img.naturalHeight;
+            var gridAspect = gridWidth / gridHeight;
+            var fitW, fitH;
+            if (imgAspect > gridAspect) {
+                fitW = gridWidth;
+                fitH = gridWidth / imgAspect;
+            } else {
+                fitH = gridHeight;
+                fitW = gridHeight * imgAspect;
+            }
+            imgX = (gridWidth - fitW) / 2;
+            imgY = (gridHeight - fitH) / 2;
+            imgScale = 1.0;
+            posScaleSlider.value = 1.0;
+            posScaleLabel.textContent = '100%';
+            drawCanvas();
+        };
+        img.src = url;
+    }
+
+    // --- Canvas drawing ---
+    function getDisplayScale() {
+        return MAX_CANVAS_DISPLAY / Math.max(gridWidth, gridHeight);
+    }
+
+    function getFitSize() {
+        if (!imageEl) return { w: 0, h: 0 };
+        var imgAspect = imageEl.naturalWidth / imageEl.naturalHeight;
+        var gridAspect = gridWidth / gridHeight;
+        if (imgAspect > gridAspect) {
+            return { w: gridWidth, h: gridWidth / imgAspect };
+        } else {
+            return { w: gridHeight * imgAspect, h: gridHeight };
+        }
+    }
+
+    function buildFilterString() {
+        var b = 1 + (parseInt(brightnessSlider.value) || 0) / 100;
+        var c = 1 + (parseInt(contrastSlider.value) || 0) / 100;
+        var s = 1 + (parseInt(saturationSlider.value) || 0) / 100;
+        return 'brightness(' + b + ') contrast(' + c + ') saturate(' + s + ')';
+    }
+
+    function drawCanvas() {
+        var ds = getDisplayScale();
+        var cw = Math.round(gridWidth * ds);
+        var ch = Math.round(gridHeight * ds);
+        posCanvas.width = cw;
+        posCanvas.height = ch;
+        posCanvas.style.maxWidth = cw + 'px';
+
+        var ctx = posCanvas.getContext('2d');
+        if (!ctx) return;
+
+        var checkSize = Math.max(4, Math.round(ds / 2));
+        for (var y = 0; y < ch; y += checkSize) {
+            for (var x = 0; x < cw; x += checkSize) {
+                ctx.fillStyle = ((x / checkSize + y / checkSize) % 2 === 0) ? '#3a3a3a' : '#2a2a2a';
+                ctx.fillRect(x, y, checkSize, checkSize);
+            }
+        }
+
+        if (imageEl) {
+            var fit = getFitSize();
+            var drawW = fit.w * imgScale;
+            var drawH = fit.h * imgScale;
+            ctx.filter = buildFilterString();
+            ctx.drawImage(imageEl, imgX * ds, imgY * ds, drawW * ds, drawH * ds);
+            ctx.filter = 'none';
+        }
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0.5, 0.5, cw - 1, ch - 1);
+
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.lineWidth = 1;
+        var midX = Math.round(cw / 2) + 0.5;
+        var midY = Math.round(ch / 2) + 0.5;
+        ctx.beginPath();
+        ctx.moveTo(midX, 0);
+        ctx.lineTo(midX, ch);
+        ctx.moveTo(0, midY);
+        ctx.lineTo(cw, midY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    // --- Drag to reposition ---
+    posCanvas.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        isDragging = true;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        dragStartImgX = imgX;
+        dragStartImgY = imgY;
+        posCanvas.style.cursor = 'grabbing';
+    });
+    document.addEventListener('mousemove', function(e) {
+        if (!isDragging) return;
+        var ds = getDisplayScale();
+        imgX = dragStartImgX + (e.clientX - dragStartX) / ds;
+        imgY = dragStartImgY + (e.clientY - dragStartY) / ds;
+        drawCanvas();
+    });
+    document.addEventListener('mouseup', function() {
+        if (isDragging) {
+            isDragging = false;
+            posCanvas.style.cursor = 'grab';
+        }
+    });
+    posCanvas.style.cursor = 'grab';
+
+    // --- Scale slider ---
+    posScaleSlider.addEventListener('input', function() {
+        var newScale = parseFloat(posScaleSlider.value);
+        if (!imageEl) return;
+
+        var fit = getFitSize();
+        var oldW = fit.w * imgScale;
+        var oldH = fit.h * imgScale;
+        var cx = imgX + oldW / 2;
+        var cy = imgY + oldH / 2;
+
+        var newW = fit.w * newScale;
+        var newH = fit.h * newScale;
+        imgX = cx - newW / 2;
+        imgY = cy - newH / 2;
+        imgScale = newScale;
+
+        posScaleLabel.textContent = Math.round(newScale * 100) + '%';
+        drawCanvas();
+    });
+
+    // --- Adjustment sliders ---
+    brightnessSlider.addEventListener('input', function() {
+        brightnessLabel.textContent = brightnessSlider.value;
+        drawCanvas();
+    });
+    contrastSlider.addEventListener('input', function() {
+        contrastLabel.textContent = contrastSlider.value;
+        drawCanvas();
+    });
+    saturationSlider.addEventListener('input', function() {
+        saturationLabel.textContent = saturationSlider.value;
+        drawCanvas();
+    });
+
+    // --- Next button: compose and submit ---
+    nextBtn.addEventListener('click', function() {
+        if (!imageEl) return;
+
+        nextBtn.disabled = true;
+        nextBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Composing...';
+
+        var maxDim = Math.max(gridWidth, gridHeight);
+        var composeFactor = Math.max(1, Math.min(8, Math.floor(2048 / maxDim)));
+
+        var cw = gridWidth * composeFactor;
+        var ch = gridHeight * composeFactor;
+
+        var canvas = document.createElement('canvas');
+        canvas.width = cw;
+        canvas.height = ch;
+        var ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, cw, ch);
+
+        var fit = getFitSize();
+        var drawW = fit.w * imgScale * composeFactor;
+        var drawH = fit.h * imgScale * composeFactor;
+        ctx.filter = buildFilterString();
+        ctx.drawImage(imageEl, imgX * composeFactor, imgY * composeFactor, drawW, drawH);
+        ctx.filter = 'none';
+
+        canvas.toBlob(function(blob) {
+            var dt = new DataTransfer();
+            dt.items.add(new File([blob], 'composed.jpg', { type: 'image/jpeg' }));
+            composedInput.files = dt.files;
+            uploadForm.submit();
+        }, 'image/jpeg', 0.95);
+    });
+}
+
+
+/* =============================================================================
    Smart Image — Position Step
    ============================================================================= */
 
@@ -1335,4 +1630,223 @@ function initSmartAdjustStep(config) {
         createBtn.disabled = true;
         createBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Creating...';
     });
+}
+
+
+/* =============================================================================
+   Diffusion — Upload Step (wrapper for smart upload)
+   ============================================================================= */
+
+/**
+ * Initialize the diffusion upload page (identical to smart upload).
+ */
+function initDiffusionUploadStep() {
+    initSmartUploadStep();
+}
+
+
+/* =============================================================================
+   Diffusion — Process Step (blur-to-reveal animation)
+   ============================================================================= */
+
+/**
+ * Initialize the diffusion process page (job-based).
+ *
+ * @param {Object} config
+ * @param {string} config.healthUrl     - GET URL for service health
+ * @param {string} config.jobStartUrl   - POST URL to submit generation job
+ * @param {string} config.jobStatusUrl  - GET URL to poll job status
+ */
+function initDiffusionProcessStep(config) {
+    var originalImg = document.getElementById('diffusion-original');
+    var resultImg = document.getElementById('diffusion-result');
+    var overlay = document.getElementById('diffusion-overlay');
+    var statusText = document.getElementById('diffusion-status-text');
+    var errorDiv = document.getElementById('diffusion-error');
+    var errorMsg = document.getElementById('diffusion-error-msg');
+    var retryBtn = document.getElementById('diffusion-retry-btn');
+    var nextBtn = document.getElementById('process-next-btn');
+
+    if (!originalImg || !resultImg) return;
+
+    function setStatus(msg) {
+        if (statusText) statusText.textContent = msg;
+    }
+
+    function formatProgress(data) {
+        if (!data.total || !data.step) return 'Generating pixel art...';
+        var pct = Math.round((data.step / data.total) * 100);
+        var msg = 'Generating pixel art — step ' + data.step + '/' + data.total + ' (' + pct + '%)';
+        if (data.elapsed > 0 && data.step > 0) {
+            var perStep = data.elapsed / data.step;
+            var remaining = Math.round(perStep * (data.total - data.step));
+            if (remaining > 0) msg += ' — ~' + remaining + 's remaining';
+        }
+        return msg;
+    }
+
+    var healthRetries = 0;
+    var MAX_HEALTH_RETRIES = 30;
+
+    function start() {
+        // Reset UI
+        errorDiv.style.display = 'none';
+        overlay.classList.remove('hidden');
+        resultImg.classList.remove('revealed');
+        nextBtn.style.display = 'none';
+        healthRetries = 0;
+        setStatus('Checking service...');
+        console.log('[Smart] Starting health check, url:', config.healthUrl);
+
+        pollHealth();
+    }
+
+    function pollHealth() {
+        healthRetries++;
+        console.log('[Smart] Health check attempt', healthRetries);
+
+        if (healthRetries > MAX_HEALTH_RETRIES) {
+            showError('AI service appears to be offline. Please try again later or check that the service is running.');
+            return;
+        }
+
+        fetch(config.healthUrl)
+            .then(function(resp) {
+                console.log('[Smart] Health response status:', resp.status);
+                return resp.json();
+            })
+            .then(function(data) {
+                console.log('[Smart] Health data:', JSON.stringify(data));
+                if (data.status === 'ready') {
+                    submitJob();
+                } else if (data.status === 'offline') {
+                    setStatus('AI service is offline. Retrying... (' + healthRetries + '/' + MAX_HEALTH_RETRIES + ')');
+                    setTimeout(pollHealth, 5000);
+                } else {
+                    setStatus('Loading AI model... (' + data.status + ')');
+                    setTimeout(pollHealth, 3000);
+                }
+            })
+            .catch(function(err) {
+                console.error('[Smart] Health check error:', err);
+                setStatus('AI service is offline. Retrying... (' + healthRetries + '/' + MAX_HEALTH_RETRIES + ')');
+                setTimeout(pollHealth, 5000);
+            });
+    }
+
+    function submitJob() {
+        setStatus('Starting generation...');
+        console.log('[Smart] Submitting job, url:', config.jobStartUrl);
+
+        // Start blur animation
+        originalImg.classList.remove('sharpening');
+        void originalImg.offsetWidth;
+        originalImg.classList.add('sharpening');
+
+        fetch(config.jobStartUrl, { method: 'POST' })
+            .then(function(resp) {
+                console.log('[Smart] Job start response status:', resp.status);
+                return resp.json();
+            })
+            .then(function(data) {
+                console.log('[Smart] Job start data:', JSON.stringify(data));
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+                // Start polling the job
+                setTimeout(pollJob, 2000);
+            })
+            .catch(function(err) {
+                console.error('[Smart] Job start error:', err);
+                showError('Network error: ' + err.message);
+            });
+    }
+
+    function pollJob() {
+        fetch(config.jobStatusUrl)
+            .then(function(resp) { return resp.json(); })
+            .then(function(data) {
+                if (data.error && data.status !== 'running') {
+                    showError(data.error);
+                    return;
+                }
+
+                if (data.status === 'done') {
+                    onComplete(data.result);
+                    return;
+                }
+
+                if (data.status === 'error') {
+                    showError(data.error || 'Generation failed.');
+                    return;
+                }
+
+                // Still running — show progress
+                setStatus(formatProgress(data));
+                setTimeout(pollJob, 2000);
+            })
+            .catch(function() {
+                // Transient error — keep polling
+                setTimeout(pollJob, 3000);
+            });
+    }
+
+    // Max colors controls
+    var colorsSection = document.getElementById('process-colors-section');
+    var colorsSlider = document.getElementById('process-colors-slider');
+    var colorsLabel = document.getElementById('process-colors-label');
+    var nextBaseHref = nextBtn ? nextBtn.href : '';
+
+    function showCompleted() {
+        nextBtn.style.display = '';
+        if (colorsSection) colorsSection.style.display = '';
+        updateNextHref();
+    }
+
+    function updateNextHref() {
+        if (!nextBtn || !colorsSlider) return;
+        var val = colorsSlider.value;
+        var sep = nextBaseHref.indexOf('?') >= 0 ? '&' : '?';
+        nextBtn.href = nextBaseHref + sep + 'max_colors=' + val;
+    }
+
+    if (colorsSlider) {
+        colorsSlider.addEventListener('input', function() {
+            if (colorsLabel) colorsLabel.textContent = colorsSlider.value;
+            updateNextHref();
+        });
+    }
+
+    function onComplete(resultDataUrl) {
+        setStatus('Done!');
+        resultImg.src = resultDataUrl;
+        resultImg.onload = function() {
+            overlay.classList.add('hidden');
+            resultImg.classList.add('revealed');
+            showCompleted();
+        };
+    }
+
+    function showError(msg) {
+        overlay.classList.add('hidden');
+        errorDiv.style.display = 'block';
+        errorMsg.textContent = msg;
+    }
+
+    retryBtn.addEventListener('click', function() {
+        start();
+    });
+
+    // If result already exists (user navigated back), show it immediately
+    if (config.existingResultUrl) {
+        resultImg.src = config.existingResultUrl;
+        resultImg.onload = function() {
+            overlay.classList.add('hidden');
+            resultImg.classList.add('revealed');
+            showCompleted();
+        };
+    } else {
+        start();
+    }
 }

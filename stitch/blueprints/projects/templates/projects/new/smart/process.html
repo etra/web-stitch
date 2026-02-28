@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}Smart Image - Generate - Web Stitch{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/wizard.css') }}">
+<link rel="stylesheet" href="{{ url_for('projects.static', filename='projects/projects.css') }}">
+<style>
+    .diffusion-canvas {
+        position: relative;
+        max-width: 512px;
+        margin: 0 auto;
+        border-radius: var(--bs-border-radius);
+        overflow: hidden;
+        border: 1px solid var(--bs-border-color);
+        background: var(--bs-body-bg);
+    }
+
+    .diffusion-canvas img {
+        display: block;
+        width: 100%;
+        height: auto;
+    }
+
+    .diffusion-original {
+        filter: blur(20px);
+        transition: filter 20s ease-out;
+    }
+
+    .diffusion-original.sharpening {
+        filter: blur(2px);
+    }
+
+    .diffusion-result {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0;
+        transition: opacity 1.5s ease-in;
+        image-rendering: pixelated;
+    }
+
+    .diffusion-result.revealed {
+        opacity: 1;
+    }
+
+    .diffusion-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.3);
+        transition: opacity 0.5s ease;
+    }
+
+    .diffusion-overlay.hidden {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .diffusion-overlay .spinner-border {
+        width: 3rem;
+        height: 3rem;
+        color: #fff;
+    }
+
+    .diffusion-status {
+        color: #fff;
+        font-weight: 600;
+        margin-top: 0.75rem;
+        animation: pulse-text 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-text {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    .diffusion-error {
+        display: none;
+        text-align: center;
+        margin-top: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wizard-container">
+    <div class="wizard-card">
+        <h1 class="text-center mb-4">Generate Pixel Art</h1>
+
+        {% set current_step = 4 %}
+        {% set steps = ['Name', 'Size', 'Vendor', 'Create'] %}
+        {% include 'components/wizard_steps.html' %}
+
+        {% set smart_step = 2 %}
+
+        {% include 'projects/new/smart/_smart_steps.html' %}
+
+        <div class="diffusion-canvas" id="diffusion-canvas">
+            <img src="{{ url_for('projects.smart_temp_image') }}"
+                 class="diffusion-original" id="diffusion-original"
+                 alt="Original image">
+            <img class="diffusion-result" id="diffusion-result" alt="Pixel art result">
+            <div class="diffusion-overlay" id="diffusion-overlay">
+                <div class="spinner-border" role="status"></div>
+                <div class="diffusion-status" id="diffusion-status-text">Checking service...</div>
+            </div>
+        </div>
+
+        <div class="diffusion-error" id="diffusion-error">
+            <div class="alert alert-danger" id="diffusion-error-msg"></div>
+            <button class="btn btn-outline-primary" id="diffusion-retry-btn">
+                <i class="bi bi-arrow-clockwise"></i> Retry
+            </button>
+        </div>
+
+        <!-- Max colors selector (shown after generation completes) -->
+        <div id="process-colors-section" style="display: none;" class="mt-3">
+            <label class="form-label small mb-1">
+                Max Colors: <span id="process-colors-label" class="fw-semibold">32</span>
+            </label>
+            <input type="range" class="form-range" id="process-colors-slider"
+                   min="2" max="{{ max_palette_colors }}" value="32">
+        </div>
+
+        <div class="wizard-nav mt-4">
+            <div class="wizard-nav-left">
+                <a href="{{ url_for('projects.new_create') }}"
+                   class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-clockwise"></i> Restart
+                </a>
+                <a href="{{ url_for('projects.list') }}"
+                   class="btn btn-outline-secondary"
+                   data-wizard-cancel>
+                    <i class="bi bi-x-lg"></i> Cancel
+                </a>
+            </div>
+
+            <div class="wizard-nav-right">
+                <a href="{{ url_for('projects.smart_adjust') }}"
+                   class="btn btn-primary" id="process-next-btn" style="display: none;">
+                    Next <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/wizard.js') }}"></script>
+<script src="{{ url_for('projects.static', filename='projects/projects.js') }}"></script>
+<script>
+    initDiffusionProcessStep({
+        healthUrl: '{{ url_for("projects.smart_health") }}',
+        jobStartUrl: '{{ url_for("projects.smart_job_start") }}',
+        jobStatusUrl: '{{ url_for("projects.smart_job_status") }}',
+        existingResultUrl: {{ ("'" + result_image_url + "'") if result_image_url else 'null' }}
+    });
+</script>
+{% endblock %}

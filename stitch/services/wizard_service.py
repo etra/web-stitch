@@ -102,6 +102,10 @@ class WizardService:
         WizardService.update_wizard_data({
             'smart_temp_id': temp_id,
             'smart_temp_file': str(file_path),
+            # Clear stale data from previous runs so we don't reuse old results
+            'diffusion_result_file': None,
+            'diffusion_job_id': None,
+            'smart_composed_file': None,
         })
         return file_path
 
@@ -137,6 +141,36 @@ class WizardService:
         return file_path
 
     @staticmethod
+    def save_smart_composed_image_bytes(png_bytes: bytes) -> Path:
+        """Save composed image from raw bytes (e.g. diffusion result).
+
+        Args:
+            png_bytes: Raw PNG image bytes.
+
+        Returns:
+            Path to the saved composed file.
+        """
+        wizard_data = WizardService.get_wizard_data()
+        temp_id = wizard_data.get('smart_temp_id')
+
+        if not temp_id:
+            temp_id = str(uuid.uuid4())
+            temp_dir = WizardService._get_temp_dir() / temp_id
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            WizardService.update_wizard_data({'smart_temp_id': temp_id})
+        else:
+            temp_dir = WizardService._get_temp_dir() / temp_id
+            temp_dir.mkdir(parents=True, exist_ok=True)
+
+        file_path = temp_dir / 'composed.png'
+        file_path.write_bytes(png_bytes)
+
+        WizardService.update_wizard_data({
+            'smart_composed_file': str(file_path),
+        })
+        return file_path
+
+    @staticmethod
     def get_smart_temp_image_path() -> Optional[Path]:
         """Return path to the original temp image, or None."""
         wizard_data = WizardService.get_wizard_data()
@@ -152,6 +186,47 @@ class WizardService:
         """Return path to the composed temp image, or None."""
         wizard_data = WizardService.get_wizard_data()
         path_str = wizard_data.get('smart_composed_file')
+        if path_str:
+            p = Path(path_str)
+            if p.exists():
+                return p
+        return None
+
+    @staticmethod
+    def save_diffusion_result_image(png_bytes: bytes) -> Path:
+        """Save the diffusion pixel-art result PNG to the temp directory.
+
+        Args:
+            png_bytes: Raw PNG bytes from the diffusion service.
+
+        Returns:
+            Path to the saved file.
+        """
+        wizard_data = WizardService.get_wizard_data()
+        temp_id = wizard_data.get('smart_temp_id')
+
+        if not temp_id:
+            temp_id = str(uuid.uuid4())
+            temp_dir = WizardService._get_temp_dir() / temp_id
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            WizardService.update_wizard_data({'smart_temp_id': temp_id})
+        else:
+            temp_dir = WizardService._get_temp_dir() / temp_id
+            temp_dir.mkdir(parents=True, exist_ok=True)
+
+        file_path = temp_dir / 'diffusion_result.png'
+        file_path.write_bytes(png_bytes)
+
+        WizardService.update_wizard_data({
+            'diffusion_result_file': str(file_path),
+        })
+        return file_path
+
+    @staticmethod
+    def get_diffusion_result_image_path() -> Optional[Path]:
+        """Return path to the diffusion result image, or None."""
+        wizard_data = WizardService.get_wizard_data()
+        path_str = wizard_data.get('diffusion_result_file')
         if path_str:
             p = Path(path_str)
             if p.exists():
