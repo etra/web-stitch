@@ -21,6 +21,12 @@ def smart_image():
     return render_template('guide/smart-image.html')
 
 
+@bp.route('/how-smart-image-works')
+def how_smart_image_works():
+    """How the Smart Image AI conversion works."""
+    return render_template('guide/how-smart-image-works.html')
+
+
 @bp.route('/editor')
 def editor():
     """Introduction to the editor."""

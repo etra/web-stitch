@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}How Does Smart Image Work? — OurStitch Guide{% endblock %}
+
+{% block meta_description %}Learn how OurStitch Smart Image uses AI to convert any picture into a high-quality cross-stitch pattern. Instead of resizing your image, Smart Image generates a brand-new pixel art version at the exact canvas size for better results.{% endblock %}
+
+{% block canonical %}<link rel="canonical" href="https://ourstitch.com/guide/how-smart-image-works">{% endblock %}
+{% block og_title %}How Does Smart Image Work? — OurStitch Guide{% endblock %}
+{% block og_description %}Smart Image uses AI to generate a new image at your exact canvas size instead of resizing. Learn how it works and why it produces better cross-stitch patterns.{% endblock %}
+{% block og_url %}https://ourstitch.com/guide/how-smart-image-works{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('guide.static', filename='guide/guide.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container" style="max-width: 48rem;">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb" class="guide-breadcrumb mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('guide.index') }}">User Guide</a></li>
+                <li class="breadcrumb-item active" aria-current="page">How Does Smart Image Work?</li>
+            </ol>
+        </nav>
+
+        <h1 class="fw-bold mb-2">How Does Smart Image Work?</h1>
+        <p class="lead text-body-secondary mb-4">Smart Image is a new way to turn pictures into cross-stitch patterns. Instead of shrinking your photo to fit the canvas, it uses AI to generate a brand-new image at the exact stitch resolution &mdash; producing cleaner, more detailed patterns.</p>
+
+        <div class="alert alert-warning border mb-5">
+            <i class="bi bi-stars me-1"></i>
+            <strong>Beta feature</strong> &mdash; Smart Image is experimental. Converting images to cross-stitch is still a hard problem and hand-crafted patterns will always look better. That said, we're very happy with the results and we're excited to give our users the opportunity to try it.
+        </div>
+
+        <!-- The Problem -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">1</span>
+                <h2 class="h5 mb-0">The challenge: photos don't shrink well</h2>
+            </div>
+            <p class="text-body-secondary">Cross-stitch works on a much smaller resolution than a typical photo. A 70&times;70 stitch canvas is only 70 pixels wide &mdash; while your photo might be 3000 pixels wide. Traditional image-to-pattern tools simply resize the photo down to fit. But resizing means sampling and averaging pixels together, which blurs fine details, muddles colors, and creates artifacts. The smaller the canvas, the worse the results.</p>
+            <p class="text-body-secondary">This has always been the fundamental problem with converting pictures into cross-stitch patterns: you're trying to represent a complex image with very few stitches, and downscaling destroys the information you need most.</p>
+        </div>
+
+        <!-- The Solution -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">2</span>
+                <h2 class="h5 mb-0">The solution: generate a new image instead of resizing</h2>
+            </div>
+            <p class="text-body-secondary">Smart Image takes a completely different approach. Instead of resizing your uploaded image, it <strong>reads and understands</strong> what's in the picture &mdash; the shapes, colors, composition, and subject matter &mdash; and then <strong>generates a brand-new image</strong> that's already at the exact size of your canvas.</p>
+            <p class="text-body-secondary">This AI-generated version is designed from the start to look good at low resolution. It uses clean edges, flat color areas, and strong contrast &mdash; exactly the qualities that make a great cross-stitch pattern. The result is a pixel art interpretation of your original image that converts beautifully into stitches.</p>
+        </div>
+
+        <!-- Step-by-step -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">3</span>
+                <h2 class="h5 mb-0">Step 1: Upload and position your image</h2>
+            </div>
+            <p class="text-body-secondary">After setting up your project (name, size, vendor), choose <strong>Smart Image</strong> on the creation screen. You'll see a familiar upload page where you can drop any image.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/how-smart-image-works/1-upload-page.png') }}" alt="Smart Image upload page with drop zone and style field" class="img-fluid mb-3">
+            <p class="text-body-secondary">Once you select a file, a positioning canvas appears. Use the <strong>Scale</strong> slider to zoom in on the area you want to stitch. Drag the image to reposition it within the frame. You can also adjust <strong>brightness</strong>, <strong>contrast</strong>, and <strong>saturation</strong> before proceeding.</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/how-smart-image-works/2-position-image.png') }}" alt="Image positioned on canvas at 150% scale with adjustment sliders" class="img-fluid mb-3">
+            <p class="text-body-secondary">The <strong>Style</strong> field lets you describe what you want the AI to create. The default "pixel art" works well for most images, but you can experiment with other descriptions.</p>
+        </div>
+
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">4</span>
+                <h2 class="h5 mb-0">Step 2: AI generates a new image at canvas size</h2>
+            </div>
+            <p class="text-body-secondary">When you click <strong>Next</strong>, the positioned area is sent to our AI service. Instead of simply shrinking the image, the AI analyzes it and generates a completely new version at the exact dimensions of your canvas. This is the key difference &mdash; every pixel in the result is purposefully placed, not averaged from a larger source.</p>
+            <p class="text-body-secondary">The generation takes a moment. You'll see a blur-to-reveal animation while the AI works, and the result appears when it's ready:</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/how-smart-image-works/4-generated-result.png') }}" alt="AI-generated pixel art result of a unicorn with Max Colors slider" class="img-fluid mb-3">
+            <p class="text-body-secondary">Notice how the result is already pixel art &mdash; clean edges, distinct color areas, and no blurriness. This is what the AI created specifically for your canvas size. You can also choose how many <strong>Max Colors</strong> to use in the final pattern before proceeding.</p>
+        </div>
+
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">5</span>
+                <h2 class="h5 mb-0">Step 3: Fine-tune the conversion</h2>
+            </div>
+            <p class="text-body-secondary">The final step converts the AI-generated image into actual cross-stitch stitches with matched thread colors. The <strong>Adjust &amp; Preview</strong> screen gives you full control over the conversion settings:</p>
+            <ul class="text-body-secondary">
+                <li><strong>Smoothing</strong> &mdash; reduces noise and isolated stitches</li>
+                <li><strong>Sharpness &amp; Edge Detail</strong> &mdash; controls how crisp edges appear</li>
+                <li><strong>Dithering</strong> &mdash; blends colors for smoother gradients</li>
+                <li><strong>Despeckling</strong> &mdash; removes single-stitch specks</li>
+                <li><strong>Backstitch &amp; Remove BG</strong> &mdash; optional outlines and background removal</li>
+            </ul>
+            <p class="text-body-secondary">Every change updates the preview instantly. The matched color palette shows exactly which threads you'll need:</p>
+            <img src="{{ url_for('guide.static', filename='guide/images/how-smart-image-works/5-adjust-preview.png') }}" alt="Adjust and Preview screen showing 32 matched DMC colors and conversion settings" class="img-fluid">
+        </div>
+
+        <!-- Why it works better -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-warning text-dark">!</span>
+                <h2 class="h5 mb-0">Why this approach works better</h2>
+            </div>
+            <div class="card bg-light border mb-3">
+                <div class="card-body">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Traditional (resize)</th>
+                                <th>Smart Image (AI)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-body-secondary">
+                            <tr>
+                                <td><strong>Method</strong></td>
+                                <td>Shrinks original image pixels</td>
+                                <td>Generates a new image at canvas size</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Edges</strong></td>
+                                <td>Blurry, averaged</td>
+                                <td>Clean, purposeful</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Colors</strong></td>
+                                <td>Muddy, mixed during resize</td>
+                                <td>Flat, distinct areas</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Detail</strong></td>
+                                <td>Lost at small sizes</td>
+                                <td>Adapted to fit the resolution</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Best for</strong></td>
+                                <td>Large canvases, simple images</td>
+                                <td>Any size, complex images</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <p class="text-body-secondary">The traditional "From Image" option is still available and works great when you have a large canvas or a simple source image. Smart Image shines when you want to convert detailed photos or illustrations onto smaller canvases where resizing alone would lose too much.</p>
+        </div>
+
+        <!-- Honest expectations -->
+        <div class="guide-step">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="guide-step-number bg-primary text-white">6</span>
+                <h2 class="h5 mb-0">Setting expectations</h2>
+            </div>
+            <p class="text-body-secondary">We want to be upfront: converting images to cross-stitch is still a long way from perfect. A pattern designed by a human stitcher will always have that personal touch, intentional color choices, and artistic decisions that no algorithm can fully replicate.</p>
+            <p class="text-body-secondary">That said, Smart Image produces surprisingly good starting points. You can always open the result in the editor and refine individual stitches, swap colors, or adjust the pattern by hand. Think of it as a powerful first draft rather than a finished piece.</p>
+            <p class="text-body-secondary">We're actively improving the AI model and conversion pipeline. If you have feedback or suggestions, we'd love to hear from you.</p>
+        </div>
+
+        <!-- Getting started -->
+        <div class="card bg-light border mt-5 mb-4">
+            <div class="card-body">
+                <h3 class="h5 card-title">Ready to try it?</h3>
+                <p class="card-text text-body-secondary mb-2">Smart Image is available to all registered users. To use it:</p>
+                <ol class="text-body-secondary mb-0">
+                    <li>Create a new project and set your canvas size and thread vendor</li>
+                    <li>On the creation step, choose <strong>Smart Image</strong> (marked with a Beta badge)</li>
+                    <li>Upload any image, position it, and let the AI generate your pattern</li>
+                    <li>Fine-tune the conversion and create your project</li>
+                </ol>
+            </div>
+        </div>
+
+        <p class="text-body-secondary text-center">Want the full step-by-step walkthrough? See our <a href="{{ url_for('guide.smart_image') }}" class="fw-semibold">Create Pattern from Image</a> guide.</p>
+
+        <!-- Navigation -->
+        <div class="d-flex justify-content-between mt-5 pt-4 border-top">
+            <a href="{{ url_for('guide.smart_image') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i> Create Pattern from Image</a>
+            <a href="{{ url_for('guide.editor') }}" class="btn btn-primary">The Editor <i class="bi bi-arrow-right ms-1"></i></a>
+        </div>
+    </div>
+</section>
+{% endblock %}
