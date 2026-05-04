@@ -33,6 +33,7 @@ def index():
 
 @bp.route('/patterns')
 def patterns():
+    return 'Patterns page is deprecated.', 404
     """Browse community patterns with pagination and sorting."""
     sort = request.args.get('sort', 'latest')
     if sort not in ('latest', 'popular'):
